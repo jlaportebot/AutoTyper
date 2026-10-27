@@ -1,0 +1,47 @@
+name: Build Windows executable
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build AutoTyper.exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build the executable
+        run: pyinstaller --clean --noconfirm AutoTyper.spec
+
+      - name: Package a portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-package | Out-Null
+          Copy-Item dist/AutoTyper.exe release-package/AutoTyper.exe
+          Copy-Item "Start AutoTyper.bat" release-package/
+          Copy-Item README.md release-package/
+          Copy-Item LICENSE release-package/
+          Compress-Archive -Path release-package/* -DestinationPath AutoTyper-v1.0.0-windows-x64.zip
+          Get-ChildItem release-package | Format-Table Name, Length
+
+      - name: Upload the build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTyper-windows-x64
+          path: |
+            dist/AutoTyper.exe
+            AutoTyper-v1.0.0-windows-x64.zip
+          if-no-files-found: error
