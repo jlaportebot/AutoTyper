@@ -1,7 +1,7 @@
 [project]
 name = "autotyper"
-version = "1.0.0"
-description = "Types text into any Windows text field with human-like pacing."
+version = "1.1.0"
+description = "Types text into any text field on Windows, macOS and Linux with human-like pacing."
 requires-python = ">=3.8"
 license = { text = "MIT" }
 

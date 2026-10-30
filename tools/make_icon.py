@@ -1,20 +1,10 @@
-"""Generate the AutoTyper application icon.
+"""The AutoTyper icon artwork.
 
-Usage:
-    python tools/make_icon.py
-
-Writes assets/autotyper.ico (multi-resolution Windows icon) and
-assets/autotyper-logo.png (512x512 master artwork). Both are committed so the
-build never depends on Pillow at release time.
+Only the drawing code lives here; ``tools/make_icons.py`` renders it into the
+Windows, macOS and Linux icon files.
 """
 
-from pathlib import Path
-
 from PIL import Image, ImageDraw
-
-ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
-ICON_PATH = ASSETS_DIR / "autotyper.ico"
-LOGO_PATH = ASSETS_DIR / "autotyper-logo.png"
 
 BACKGROUND = "#0e0f12"
 ACCENT = "#c8f560"
@@ -68,20 +58,3 @@ def build_master() -> Image.Image:
     _type_lines(draw, top=top, line_h=line_h, gap=gap)
     _caret(draw, top=top, line_h=line_h, gap=gap)
     return image
-
-
-def main() -> None:
-    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    master = build_master()
-    master.save(LOGO_PATH)
-    master.save(
-        ICON_PATH,
-        format="ICO",
-        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-    )
-    print(f"wrote {LOGO_PATH}")
-    print(f"wrote {ICON_PATH}")
-
-
-if __name__ == "__main__":
-    main()

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AutoTyper
+Comment=Types your text into any field with human-like pacing
+Exec=AutoTyper
+Icon=AutoTyper
+Terminal=false
+Categories=Utility;Accessibility;
+StartupWMClass=AutoTyper

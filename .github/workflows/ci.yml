@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Lint and test
+  test-linux:
+    name: Lint and test (Linux, Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -24,8 +24,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install lint tooling
-        run: python -m pip install --upgrade pip ruff
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip ruff pillow pyyaml python-xlib
 
       - name: Lint
         run: ruff check .
@@ -33,5 +33,40 @@ jobs:
       - name: Run the test suite
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb openbox desktop-file-utils
           xvfb-run -a python -m unittest discover -s tests -t . -v
+
+  test-macos:
+    name: Lint and test (macOS, Python 3.12)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip ruff pillow pyyaml
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -t . -v
+
+  test-windows:
+    name: Test (Windows, Python 3.12)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pillow pyyaml
+
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -t . -v

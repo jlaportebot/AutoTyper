@@ -12,8 +12,15 @@ class Button(tk.Label):
         self.kind = kind
         self.command = command
         self.enabled = True
-        super().__init__(master, text=text, font=font or "TkDefaultFont", padx=16, pady=7,
-                         cursor="hand2", **kwargs)
+        super().__init__(
+            master,
+            text=text,
+            font=font or "TkDefaultFont",
+            padx=16,
+            pady=7,
+            cursor="hand2",
+            **kwargs,
+        )
         self._paint(False)
         self.bind("<Enter>", lambda _event: self._paint(True))
         self.bind("<Leave>", lambda _event: self._paint(False))
@@ -45,21 +52,57 @@ class Button(tk.Label):
 class Slider(tk.Frame):
     """A labelled horizontal scale with a live value readout."""
 
-    def __init__(self, master, label, low, high, value, unit="", on_change=None,
-                 font_ui=None, font_label=None, font_mono=None):
+    def __init__(
+        self,
+        master,
+        label,
+        low,
+        high,
+        value,
+        unit="",
+        on_change=None,
+        font_ui=None,
+        font_label=None,
+        font_mono=None,
+    ):
         super().__init__(master, bg=COLORS["bg"])
         self.var = tk.IntVar(value=value)
         self.unit = unit
         self.on_change = on_change
-        tk.Label(self, text=label, font=font_ui or "TkDefaultFont", fg=COLORS["text"],
-                 bg=COLORS["bg"], width=14, anchor="w").pack(side="left")
-        tk.Scale(self, from_=low, to=high, orient="horizontal", variable=self.var,
-                 showvalue=False, bg=COLORS["bg"], troughcolor=COLORS["line"],
-                 activebackground=COLORS["accent"], highlightthickness=0, bd=0,
-                 sliderrelief="flat", sliderlength=14, width=6,
-                 command=self._changed).pack(side="left", fill="x", expand=True, padx=8)
-        self.value_label = tk.Label(self, font=font_mono or "TkFixedFont", fg=COLORS["accent"],
-                                    bg=COLORS["bg"], width=7, anchor="e")
+        tk.Label(
+            self,
+            text=label,
+            font=font_ui or "TkDefaultFont",
+            fg=COLORS["text"],
+            bg=COLORS["bg"],
+            width=14,
+            anchor="w",
+        ).pack(side="left")
+        tk.Scale(
+            self,
+            from_=low,
+            to=high,
+            orient="horizontal",
+            variable=self.var,
+            showvalue=False,
+            bg=COLORS["bg"],
+            troughcolor=COLORS["line"],
+            activebackground=COLORS["accent"],
+            highlightthickness=0,
+            bd=0,
+            sliderrelief="flat",
+            sliderlength=14,
+            width=6,
+            command=self._changed,
+        ).pack(side="left", fill="x", expand=True, padx=8)
+        self.value_label = tk.Label(
+            self,
+            font=font_mono or "TkFixedFont",
+            fg=COLORS["accent"],
+            bg=COLORS["bg"],
+            width=7,
+            anchor="e",
+        )
         self.value_label.pack(side="left")
         self.value_label.config(text=f"{value}{unit}")
 

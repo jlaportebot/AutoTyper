@@ -5,9 +5,14 @@ display is available the whole module is skipped.
 """
 
 import os
+import tempfile
 import unittest
+from unittest import mock
 
-from autotyper.gui import AutoTyperApp
+from autotyper import gui
+from autotyper.errors import InputBackendError
+from autotyper.gui import AutoTyperApp, font_candidates
+from autotyper.keys import KEY_ESCAPE, KEY_LEFT_BUTTON
 
 HAS_DISPLAY = bool(os.environ.get("DISPLAY")) or os.name == "nt"
 
@@ -15,7 +20,7 @@ TARGET = 111
 
 
 class FakeBackend:
-    """Stands in for the Windows input layer."""
+    """Stands in for the platform input layer."""
 
     def __init__(self):
         self.out = []
@@ -28,15 +33,15 @@ class FakeBackend:
     def type_char(self, char):
         self.out.append(char)
 
-    def key_down(self, vk):
-        return vk in self.keys
+    def key_down(self, key):
+        return key in self.keys
 
     def foreground(self):
         return self.fg
 
-    def focus(self, hwnd):
+    def focus(self, handle):
         self.focus_calls += 1
-        self.fg = hwnd
+        self.fg = handle
 
     def cursor_pos(self):
         return (120, 240)
@@ -44,22 +49,117 @@ class FakeBackend:
     def root_window_at(self, x, y):
         return TARGET
 
-    def window_title(self, hwnd):
+    def window_title(self, handle):
         return self.title
 
     def click(self, x, y):
         self.clicks.append((x, y))
 
 
+class ScriptedClickBackend(FakeBackend):
+    """Reports the left button as released once, then pressed."""
+
+    def __init__(self):
+        super().__init__()
+        self.left_states = iter([False, True])
+
+    def key_down(self, key):
+        if key == KEY_LEFT_BUTTON:
+            return next(self.left_states, True)
+        return super().key_down(key)
+
+
+class FontCandidates(unittest.TestCase):
+    def test_windows_prefers_segoe_and_cascadia(self):
+        ui, mono = font_candidates("win32")
+        self.assertEqual(ui, ("Segoe UI Variable Text", "Segoe UI"))
+        self.assertEqual(mono, ("Cascadia Mono", "Consolas"))
+
+    def test_macos_prefers_sf_and_menlo(self):
+        ui, mono = font_candidates("darwin")
+        self.assertEqual(ui, ("SF Pro Text", "Helvetica Neue", "Arial"))
+        self.assertEqual(mono, ("SF Mono", "Menlo", "Monaco"))
+
+    def test_linux_prefers_ubuntu_and_dejavu(self):
+        ui, mono = font_candidates("linux")
+        self.assertEqual(ui, ("Ubuntu", "Cantarell", "DejaVu Sans", "Noto Sans"))
+        self.assertEqual(mono, ("DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono"))
+
+    def test_unknown_platform_uses_the_linux_list(self):
+        self.assertEqual(font_candidates("freebsd14"), font_candidates("linux"))
+
+    def test_defaults_to_the_running_platform(self):
+        with mock.patch("sys.platform", "darwin"):
+            self.assertEqual(font_candidates(), font_candidates("darwin"))
+
+
+class StartupErrors(unittest.TestCase):
+    def test_run_reports_an_unavailable_backend_and_returns_failure(self):
+        failure = InputBackendError("no input backend")
+        with mock.patch.object(gui, "create_backend", side_effect=failure), mock.patch.object(
+            gui, "_show_startup_error"
+        ) as show:
+            self.assertEqual(gui.run(), 1)
+        show.assert_called_once_with(failure)
+
+    def test_startup_dialog_survives_a_display_that_raises_an_os_error(self):
+        with mock.patch("tkinter.Tk", side_effect=OSError("display went away")):
+            gui._show_startup_error(InputBackendError("no input backend"))
+
+    def test_startup_dialog_survives_a_missing_display(self):
+        import tkinter
+
+        with mock.patch("tkinter.Tk", side_effect=tkinter.TclError("no display")):
+            gui._show_startup_error(InputBackendError("no input backend"))
+
+    def test_run_does_not_hard_fail_on_non_windows_platforms(self):
+        app = mock.Mock()
+        with mock.patch("sys.platform", "linux"), mock.patch.object(
+            gui, "AutoTyperApp", return_value=app
+        ):
+            self.assertEqual(gui.run(), 0)
+        app.run.assert_called_once_with()
+
+
 @unittest.skipUnless(HAS_DISPLAY, "no display available")
 class UserInterface(unittest.TestCase):
     def setUp(self):
+        self.config_dir = tempfile.TemporaryDirectory()
+        patcher = mock.patch(
+            "autotyper.settings.config_base_dir", return_value=self.config_dir.name
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.config_dir.cleanup)
         self.backend = FakeBackend()
         self.app = AutoTyperApp(backend=self.backend)
         self.app.update()
 
     def tearDown(self):
         self.app.close()
+
+    def test_run_closes_the_input_backend_when_the_event_loop_ends(self):
+        self.backend.close = mock.Mock()
+        with mock.patch.object(self.app.root, "mainloop"):
+            self.app.run()
+        self.backend.close.assert_called_once_with()
+
+    def test_run_closes_the_backend_even_if_the_event_loop_fails(self):
+        self.backend.close = mock.Mock()
+        with mock.patch.object(
+            self.app.root, "mainloop", side_effect=KeyboardInterrupt
+        ), self.assertRaises(KeyboardInterrupt):
+            self.app.run()
+        self.backend.close.assert_called_once_with()
+
+    def test_run_survives_a_backend_that_cannot_disconnect(self):
+        self.backend.close = mock.Mock(side_effect=OSError("broken pipe"))
+        with mock.patch.object(self.app.root, "mainloop"):
+            self.app.run()
+
+    def test_run_works_with_a_backend_that_has_no_close(self):
+        with mock.patch.object(self.app.root, "mainloop"):
+            self.app.run()
 
     def test_window_builds_with_all_sections(self):
         self.assertTrue(self.app.go_button.winfo_exists())
@@ -79,8 +179,20 @@ class UserInterface(unittest.TestCase):
     def test_pick_records_the_target_window(self):
         self.app._finish_pick((120, 240))
         self.assertEqual(self.app.state["spot"], (120, 240))
-        self.assertEqual(self.app.state["hwnd"], TARGET)
+        self.assertEqual(self.app.state["handle"], TARGET)
         self.assertIn("Notepad", self.app.spot_label.cget("text"))
+
+    def test_wait_for_click_records_the_cursor_when_left_button_is_pressed(self):
+        self.app.backend = ScriptedClickBackend()
+        with mock.patch.object(gui.time, "sleep"):
+            self.app._wait_for_click()
+        self.assertEqual(self.app.events.get_nowait(), ("pick", (120, 240)))
+
+    def test_wait_for_click_cancels_when_escape_is_held(self):
+        self.backend.keys.add(KEY_ESCAPE)
+        with mock.patch.object(gui.time, "sleep"):
+            self.app._wait_for_click()
+        self.assertEqual(self.app.events.get_nowait(), ("pick", None))
 
     def test_cancelled_pick_leaves_no_target(self):
         self.app._finish_pick(None)

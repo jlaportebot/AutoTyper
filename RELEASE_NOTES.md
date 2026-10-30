@@ -1,73 +1,51 @@
-# AutoTyper v1.0.0
+# AutoTyper v1.1.0
 
-**Types your text into any field on Windows — one key at a time, at a pace that
-looks human.**
+**AutoTyper now runs on Windows, macOS and Linux.** It types your text into any
+field one key at a time, at a pace that looks human.
 
 ![AutoTyper icon](assets/autotyper-logo.png)
 
-AutoTyper is a small desktop app for Windows. Pick the spot on screen you want
-to write into, paste the text you want written, choose how fast it should be
-typed, and press **Go**. AutoTyper clicks the spot, focuses it and types the
-text character by character with a natural rhythm — variable speed, a pause at
-commas, a longer pause at full stops, a beat between sentences.
+## What's new
 
-It is built for writing into anything that monitors how you type: timed
-writing platforms, prose trainers, typing tutors, and any app that accepts
-real keyboard input.
+- **macOS app** — an `.app` in a DMG (ad-hoc signed, not notarized), with separate downloads
+  for Apple Silicon and Intel Macs.
+- **Linux app** — a single AppImage for x86_64 and ARM64.
+- Real keystrokes on every system: Win32 `SendInput` on Windows, X11 `XTEST` on
+  Linux, Quartz `CGEvent` on macOS.
+- Settings are saved in each system's usual folder.
+- Windows is unchanged.
 
 ## Download
 
-Grab **AutoTyper.exe** from this release. It is a single self-contained file —
-no Python installation required.
+| System | File |
+| --- | --- |
+| Windows (64-bit) | `AutoTyper.exe` or `AutoTyper-windows-x64.zip` |
+| macOS, Apple Silicon | `AutoTyper-1.1.0-macos-arm64.dmg` |
+| macOS, Intel | `AutoTyper-1.1.0-macos-x64.dmg` |
+| Linux, x86_64 | `AutoTyper-1.1.0-linux-x86_64.AppImage` |
+| Linux, ARM64 | `AutoTyper-1.1.0-linux-aarch64.AppImage` |
 
-1. Download `AutoTyper-windows-x64.zip` and extract it.
-2. Double-click `AutoTyper.exe`.
-3. Windows SmartScreen may warn about an unrecognised app — choose
-   **More info → Run anyway**.
+No Python installation is needed for any of them.
 
-If you prefer to run from source, clone the repo and use `Start AutoTyper.bat`.
-Python 3.8+ is required and there are no third-party dependencies.
+### First run
+
+- **Windows** — SmartScreen may warn about an unrecognised app: choose
+  **More info → Run anyway**.
+- **macOS** — open the DMG and drag AutoTyper to Applications. The first launch
+  is blocked: right-click the app → **Open** → **Open** (on macOS 15 and later,
+  use **Open Anyway** in **System Settings → Privacy & Security**). Then enable AutoTyper
+  in **System Settings → Privacy & Security → Accessibility** (macOS will ask)
+  and restart the app, otherwise it cannot type.
+- **Linux** — `chmod +x` the AppImage, then double-click it or run it from a
+  terminal. AutoTyper needs an **X11** session (XWayland works); native Wayland
+  windows cannot receive synthetic input.
 
 ## How to use it
 
-**01 · Target** — press **Pick spot**, then click the text box you want to
-write into. AutoTyper hides itself while you do this and shows you the target
-window's title so you can confirm it. Press `Esc` while picking to cancel.
-
-**02 · Text** — type or paste your text, or press **Open .txt** to load a
-file. The counter shows characters, words and a live ETA.
-
-**03 · Speed & timing**
-
-- **Words / minute** — 10 to 200. The base typing speed.
-- **Rhythm** — 0% to 60%. How much the delay between keystrokes varies.
-  0% is a metronome; 25–40% looks convincingly human.
-- **Start delay** — 1 to 10 seconds before AutoTyper clicks the target.
-
-Press **Go**. The window collapses into a small floating control bar, a
-countdown runs, and AutoTyper clicks the target and starts typing.
-
-## Controls
-
-| Control | Action |
-| --- | --- |
-| `F9` | Pause / resume — continues from the exact character. |
-| `Esc` | Stop. |
-| **Pause** / **Stop** buttons | Same as the keys above. |
-
-If you click another window while typing, AutoTyper pauses itself so it can
-never type into the wrong app. On resume it counts down two seconds and brings
-your target window back to the front.
-
-## What makes it look human
-
-AutoTyper sends real keystrokes through the Windows `SendInput` API one Unicode
-code point at a time — it never pastes. On top of the base speed it adds
-randomised inter-key delays, a slight stretch after spaces, short pauses after
-commas, longer pauses after full stops, the longest pause after newlines, and
-a natural resume that preserves the remaining delay so there is no visible jump.
-
-Unicode (accents, emoji, CJK) and tabs/newlines are handled properly.
+Press **Pick spot** and click the text box you want to write into, paste your
+text, set the speed, and press **Go**. `F9` pauses and resumes, `Esc` stops.
+If you click another window while typing, AutoTyper pauses so it never types
+into the wrong app.
 
 Full documentation: [README.md](https://github.com/jlaportebot/AutoTyper#readme)
 

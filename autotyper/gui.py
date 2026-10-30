@@ -5,17 +5,20 @@ tune the speed, then press Go. While typing, the main window collapses into a
 small floating control bar.
 """
 
+import logging
 import queue
 import sys
 import threading
 import time
 
 from .engine import Typist
+from .errors import InputBackendError
 from .gui_colors import COLORS
+from .input_factory import create_backend
+from .keys import KEY_ESCAPE, KEY_LEFT_BUTTON
 from .pacing import estimate_seconds, fmt_time, plan_delays
 from .settings import load_settings, save_settings
 from .widgets import Button, Slider
-from .win_input import VK_ESCAPE, VK_LBUTTON, WindowsInput
 
 APP_NAME = "AutoTyper"
 WINDOW_WIDTH = 600
@@ -33,8 +36,25 @@ CLICK_SETTLE_DELAY = 0.3
 COUNTDOWN_TICKS = 10
 TEXT_FILE_TYPES = [("Text", "*.txt *.md"), ("All files", "*.*")]
 DECODE_ERRORS = "replace"
-UI_FONTS = ("Segoe UI Variable Text", "Segoe UI")
-MONO_FONTS = ("Cascadia Mono", "Consolas")
+FONT_CANDIDATES = {
+    "win32": (
+        ("Segoe UI Variable Text", "Segoe UI"),
+        ("Cascadia Mono", "Consolas"),
+    ),
+    "darwin": (
+        ("SF Pro Text", "Helvetica Neue", "Arial"),
+        ("SF Mono", "Menlo", "Monaco"),
+    ),
+    "linux": (
+        ("Ubuntu", "Cantarell", "DejaVu Sans", "Noto Sans"),
+        ("DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono"),
+    ),
+}
+FALLBACK_UI_FONT = "TkDefaultFont"
+FALLBACK_MONO_FONT = "TkFixedFont"
+ERROR_DIALOG_TITLE = "AutoTyper cannot start"
+
+logger = logging.getLogger(__name__)
 
 STATE_TYPING = "typing"
 STATE_PAUSED = "paused"
@@ -43,6 +63,14 @@ STATE_COUNTDOWN = "countdown"
 STATE_DONE = "done"
 STATE_STOPPED = "stopped"
 EVENT_POLL_MS = 40
+
+
+def font_candidates(platform=None):
+    """Preferred ``(ui_fonts, mono_fonts)`` families for a platform, best first."""
+    platform = platform or sys.platform
+    if platform in FONT_CANDIDATES:
+        return FONT_CANDIDATES[platform]
+    return FONT_CANDIDATES["linux"]
 
 
 def _pick_font(available, candidates, fallback):
@@ -68,9 +96,9 @@ class AutoTyperApp:
         import tkinter as tk
 
         self.tk = tk
-        self.backend = backend or WindowsInput()
+        self.backend = backend or create_backend()
         self.config = load_settings()
-        self.state = {"spot": None, "hwnd": None, "typist": None}
+        self.state = {"spot": None, "handle": None, "typist": None}
         self.events = queue.Queue()
         self.poll_job = None
         self.root = tk.Tk()
@@ -89,8 +117,9 @@ class AutoTyperApp:
         from tkinter import font as tkfont
 
         families = set(tkfont.families())
-        self.ui = _pick_font(families, UI_FONTS, "TkDefaultFont")
-        self.mono = _pick_font(families, MONO_FONTS, "TkFixedFont")
+        ui_fonts, mono_fonts = font_candidates()
+        self.ui = _pick_font(families, ui_fonts, FALLBACK_UI_FONT)
+        self.mono = _pick_font(families, mono_fonts, FALLBACK_MONO_FONT)
         self.font_ui = (self.ui, 10)
         self.font_ui_bold = (self.ui, 10, "bold")
         self.font_label = (self.mono, 8)
@@ -103,8 +132,18 @@ class AutoTyperApp:
 
     def _slider(self, parent, label, low, high, value, unit="", on_change=None):
         """Create a horizontal slider in the current visual style."""
-        return Slider(parent, label, low, high, value, unit, on_change,
-                      self.font_ui, self.font_label, self.font_mono)
+        return Slider(
+            parent,
+            label,
+            low,
+            high,
+            value,
+            unit,
+            on_change,
+            self.font_ui,
+            self.font_label,
+            self.font_mono,
+        )
 
     def _section(self, parent, number, title):
         """Create a numbered section header and return its body frame."""
@@ -113,10 +152,12 @@ class AutoTyperApp:
         wrap.pack(fill="x", padx=22, pady=(14, 0))
         head = tk.Frame(wrap, bg=COLORS["bg"])
         head.pack(fill="x")
-        tk.Label(head, text=number, font=self.font_label, fg=COLORS["accent"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(head, text="  " + title.upper(), font=self.font_label,
-                 fg=COLORS["dim"], bg=COLORS["bg"]).pack(side="left")
+        tk.Label(
+            head, text=number, font=self.font_label, fg=COLORS["accent"], bg=COLORS["bg"]
+        ).pack(side="left")
+        tk.Label(
+            head, text="  " + title.upper(), font=self.font_label, fg=COLORS["dim"], bg=COLORS["bg"]
+        ).pack(side="left")
         tk.Frame(head, bg=COLORS["line"], height=1).pack(
             side="left", fill="x", expand=True, padx=(10, 0), pady=(2, 0)
         )
@@ -135,12 +176,19 @@ class AutoTyperApp:
 
         header = tk.Frame(self.main_view, bg=COLORS["bg"])
         header.pack(fill="x", padx=22, pady=(20, 0))
-        tk.Label(header, text="autotyper", font=self.font_title, fg=COLORS["text"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text="_", font=self.font_title, fg=COLORS["accent"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text="F9 pause · ESC stop", font=self.font_label,
-                 fg=COLORS["dim"], bg=COLORS["bg"]).pack(side="right", pady=(8, 0))
+        tk.Label(
+            header, text="autotyper", font=self.font_title, fg=COLORS["text"], bg=COLORS["bg"]
+        ).pack(side="left")
+        tk.Label(header, text="_", font=self.font_title, fg=COLORS["accent"], bg=COLORS["bg"]).pack(
+            side="left"
+        )
+        tk.Label(
+            header,
+            text="F9 pause · ESC stop",
+            font=self.font_label,
+            fg=COLORS["dim"],
+            bg=COLORS["bg"],
+        ).pack(side="right", pady=(8, 0))
 
         self._build_target_section()
         self._build_text_section()
@@ -152,11 +200,18 @@ class AutoTyperApp:
         """Section 01: pick the window and spot to type into."""
         tk = self.tk
         _, body = self._section(self.main_view, "01", "Target")
-        self.spot_dot = tk.Label(body, text="●", font=self.font_ui, fg=COLORS["line"],
-                                 bg=COLORS["bg"])
+        self.spot_dot = tk.Label(
+            body, text="●", font=self.font_ui, fg=COLORS["line"], bg=COLORS["bg"]
+        )
         self.spot_dot.pack(side="left")
-        self.spot_label = tk.Label(body, text="No spot picked", font=self.font_ui,
-                                   fg=COLORS["dim"], bg=COLORS["bg"], anchor="w")
+        self.spot_label = tk.Label(
+            body,
+            text="No spot picked",
+            font=self.font_ui,
+            fg=COLORS["dim"],
+            bg=COLORS["bg"],
+            anchor="w",
+        )
         self.spot_label.pack(side="left", padx=(6, 0), fill="x", expand=True)
         self.pick_button = self._button(body, "Pick spot", self.pick)
         self.pick_button.pack(side="right")
@@ -170,9 +225,18 @@ class AutoTyperApp:
         frame = tk.Frame(body, bg=COLORS["line"], padx=1, pady=1)
         frame.pack(fill="both", expand=True)
         self.text_box = tk.Text(
-            frame, wrap="word", undo=True, font=(self.ui, 11), bg=COLORS["field"],
-            fg=COLORS["text"], insertbackground=COLORS["accent"],
-            selectbackground="#2f3a1a", relief="flat", padx=12, pady=10, height=8,
+            frame,
+            wrap="word",
+            undo=True,
+            font=(self.ui, 11),
+            bg=COLORS["field"],
+            fg=COLORS["text"],
+            insertbackground=COLORS["accent"],
+            selectbackground="#2f3a1a",
+            relief="flat",
+            padx=12,
+            pady=10,
+            height=8,
             highlightthickness=0,
         )
         self.text_box.pack(fill="both", expand=True)
@@ -180,8 +244,7 @@ class AutoTyperApp:
 
         tools = tk.Frame(body, bg=COLORS["bg"])
         tools.pack(fill="x", pady=(6, 0))
-        self.count_label = tk.Label(tools, font=self.font_label, fg=COLORS["dim"],
-                                    bg=COLORS["bg"])
+        self.count_label = tk.Label(tools, font=self.font_label, fg=COLORS["dim"], bg=COLORS["bg"])
         self.count_label.pack(side="left")
         self._button(tools, "Clear", self.clear_text).pack(side="right")
         self._button(tools, "Open .txt", self.open_file).pack(side="right", padx=(0, 6))
@@ -206,41 +269,43 @@ class AutoTyperApp:
         tk = self.tk
         footer = tk.Frame(self.main_view, bg=COLORS["bg"])
         footer.pack(fill="x", padx=22, pady=(16, 20))
-        self.eta_label = tk.Label(footer, font=self.font_mono, fg=COLORS["dim"],
-                                  bg=COLORS["bg"])
+        self.eta_label = tk.Label(footer, font=self.font_mono, fg=COLORS["dim"], bg=COLORS["bg"])
         self.eta_label.pack(side="left")
         self.go_button = self._button(footer, "Go  →", self.go, kind="primary")
         self.go_button.pack(side="right")
-        self.message_label = tk.Label(self.main_view, text="", font=self.font_ui,
-                                      fg=COLORS["warn"], bg=COLORS["bg"])
+        self.message_label = tk.Label(
+            self.main_view, text="", font=self.font_ui, fg=COLORS["warn"], bg=COLORS["bg"]
+        )
         self.message_label.pack(fill="x", padx=22, pady=(0, 10))
 
     def _build_mini_bar(self):
         """The floating control bar shown while typing."""
         tk = self.tk
-        self.mini = tk.Frame(self.root, bg=COLORS["panel"], highlightthickness=1,
-                             highlightbackground=COLORS["line"])
+        self.mini = tk.Frame(
+            self.root, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["line"]
+        )
         row = tk.Frame(self.mini, bg=COLORS["panel"])
         row.pack(fill="x", padx=12, pady=(10, 6))
-        self.mini_state = tk.Label(row, text="TYPING", font=self.font_label,
-                                   fg=COLORS["accent"], bg=COLORS["panel"])
+        self.mini_state = tk.Label(
+            row, text="TYPING", font=self.font_label, fg=COLORS["accent"], bg=COLORS["panel"]
+        )
         self.mini_state.pack(side="left")
-        self.mini_percent = tk.Label(row, font=self.font_mono, fg=COLORS["text"],
-                                     bg=COLORS["panel"])
+        self.mini_percent = tk.Label(
+            row, font=self.font_mono, fg=COLORS["text"], bg=COLORS["panel"]
+        )
         self.mini_percent.pack(side="right")
-        self.progress_bar = tk.Canvas(self.mini, height=4, bg=COLORS["line"],
-                                      highlightthickness=0)
+        self.progress_bar = tk.Canvas(self.mini, height=4, bg=COLORS["line"], highlightthickness=0)
         self.progress_bar.pack(fill="x", padx=12)
         self.progress_fill = self.progress_bar.create_rectangle(
             0, 0, 0, 4, fill=COLORS["accent"], width=0
         )
-        self.mini_info = tk.Label(self.mini, text="", font=self.font_ui, fg=COLORS["dim"],
-                                  bg=COLORS["panel"], anchor="w")
+        self.mini_info = tk.Label(
+            self.mini, text="", font=self.font_ui, fg=COLORS["dim"], bg=COLORS["panel"], anchor="w"
+        )
         self.mini_info.pack(fill="x", padx=12, pady=(6, 0))
         buttons = tk.Frame(self.mini, bg=COLORS["panel"])
         buttons.pack(fill="x", padx=12, pady=(6, 12))
-        self.mini_pause = self._button(buttons, "Pause", self.toggle_pause,
-                                       bg=COLORS["panel"])
+        self.mini_pause = self._button(buttons, "Pause", self.toggle_pause, bg=COLORS["panel"])
         self.mini_pause.pack(side="left")
         self._button(buttons, "Stop", self.stop_typing).pack(side="right")
 
@@ -274,18 +339,19 @@ class AutoTyperApp:
         if not text:
             self.eta_label.config(text="")
             return
-        seconds = estimate_seconds(text, self.slider_wpm.get(),
-                                   self.slider_variation.get() / 100)
+        seconds = estimate_seconds(text, self.slider_wpm.get(), self.slider_variation.get() / 100)
         self.eta_label.config(text=f"≈ {fmt_time(seconds)}")
 
     def persist(self):
         """Save the current settings and text to disk."""
-        save_settings({
-            "wpm": self.slider_wpm.get(),
-            "variation": self.slider_variation.get(),
-            "delay": self.slider_delay.get(),
-            "text": self.current_text(),
-        })
+        save_settings(
+            {
+                "wpm": self.slider_wpm.get(),
+                "variation": self.slider_variation.get(),
+                "delay": self.slider_delay.get(),
+                "text": self.current_text(),
+            }
+        )
 
     def say(self, message, color=None):
         """Show a status message under the main view."""
@@ -321,14 +387,14 @@ class AutoTyperApp:
     def _wait_for_click(self):
         """Block until the user clicks a spot (or cancels with Escape)."""
         time.sleep(PICK_ARM_DELAY)
-        while self.backend.key_down(VK_LBUTTON):
+        while self.backend.key_down(KEY_LEFT_BUTTON):
             time.sleep(0.01)
         spot = None
         started = time.time()
         while time.time() - started < PICK_TIMEOUT_SECONDS:
-            if self.backend.key_down(VK_ESCAPE):
+            if self.backend.key_down(KEY_ESCAPE):
                 break
-            if self.backend.key_down(VK_LBUTTON):
+            if self.backend.key_down(KEY_LEFT_BUTTON):
                 spot = self.backend.cursor_pos()
                 break
             time.sleep(0.01)
@@ -342,8 +408,8 @@ class AutoTyperApp:
             self.say("Pick cancelled.")
             return
         self.state["spot"] = spot
-        self.state["hwnd"] = self.backend.root_window_at(*spot)
-        title = _shorten_title(self.backend.window_title(self.state["hwnd"]))
+        self.state["handle"] = self.backend.root_window_at(*spot)
+        title = _shorten_title(self.backend.window_title(self.state["handle"]))
         self.spot_label.config(text=f"{title}   ({spot[0]}, {spot[1]})", fg=COLORS["text"])
         self.spot_dot.config(fg=COLORS["accent"])
         self.say("")
@@ -375,8 +441,13 @@ class AutoTyperApp:
         variation = self.slider_variation.get() / 100
         delay = self.slider_delay.get()
         plan = plan_delays(text, wpm, variation)
-        typist = Typist(self.backend, plan, target=self.state["hwnd"],
-                        on_progress=self.ui_progress, on_state=self.ui_state)
+        typist = Typist(
+            self.backend,
+            plan,
+            target=self.state["handle"],
+            on_progress=self.ui_progress,
+            on_state=self.ui_state,
+        )
         self.state["typist"] = typist
         self.go_button.set(enabled=False)
         self.show_mini()
@@ -391,7 +462,7 @@ class AutoTyperApp:
             self.backend.click(*self.state["spot"])
             time.sleep(CLICK_SETTLE_DELAY)
             typist.target = self.backend.foreground()
-            self.state["hwnd"] = typist.target
+            self.state["handle"] = typist.target
             typist.run()
         except Exception as exc:  # surfaced to the user in the UI
             self.ui_state(STATE_STOPPED, "0")
@@ -402,7 +473,7 @@ class AutoTyperApp:
         for number in range(delay, 0, -1):
             self.ui_state(STATE_COUNTDOWN, str(number))
             for _ in range(COUNTDOWN_TICKS):
-                if self.backend.key_down(VK_ESCAPE) or typist.stopped:
+                if self.backend.key_down(KEY_ESCAPE) or typist.stopped:
                     typist.abort()
                     return False
                 time.sleep(0.1)
@@ -428,8 +499,7 @@ class AutoTyperApp:
 
     def _overlaps_spot(self, x, y, spot_x, spot_y):
         """True if the mini bar would cover the target spot."""
-        return (x - 10 <= spot_x <= x + MINI_WIDTH + 10
-                and y - 40 <= spot_y <= y + MINI_HEIGHT + 10)
+        return x - 10 <= spot_x <= x + MINI_WIDTH + 10 and y - 40 <= spot_y <= y + MINI_HEIGHT + 10
 
     def show_main(self):
         """Restore the full window."""
@@ -512,17 +582,47 @@ class AutoTyperApp:
             self.poll_job = None
         self.root.destroy()
 
+    def _close_backend(self):
+        """Disconnect the input backend if it holds a connection (X11 does)."""
+        closer = getattr(self.backend, "close", None)
+        if closer is None:
+            return
+        try:
+            closer()
+        except OSError as exc:
+            logger.warning("Could not close the input backend: %s", exc)
+
     def run(self):
-        """Enter the Tk event loop."""
-        self.root.mainloop()
+        """Enter the Tk event loop; the input backend is released when it ends."""
+        try:
+            self.root.mainloop()
+        finally:
+            self._close_backend()
+
+
+def _show_startup_error(error):
+    """Tell the user why the app cannot start, in a dialog when a display exists."""
+    import tkinter as tk
+    from tkinter import messagebox
+
+    logger.error("%s", error)
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(ERROR_DIALOG_TITLE, str(error), parent=root)
+        root.destroy()
+    except (tk.TclError, OSError) as exc:
+        logger.error("No dialog could be shown: %s", exc)
 
 
 def run():
-    """Launch the AutoTyper GUI."""
-    if sys.platform != "win32":
-        print("AutoTyper only runs on Windows.")
+    """Launch the AutoTyper GUI; returns the process exit code."""
+    try:
+        app = AutoTyperApp()
+    except InputBackendError as error:
+        _show_startup_error(error)
         return 1
-    AutoTyperApp().run()
+    app.run()
     return 0
 
 
