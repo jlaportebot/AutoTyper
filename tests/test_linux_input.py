@@ -43,7 +43,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MIN_UNICODE_HOLD = 0.05
 OPENBOX = shutil.which("openbox")
-WM_START_TIMEOUT = 5.0
+WM_START_TIMEOUT = 15.0
 WM_POLL_INTERVAL = 0.05
 INSIDE_OFFSET = 20
 STALE_ROOT_PROPERTIES = ("_NET_SUPPORTING_WM_CHECK", "_NET_ACTIVE_WINDOW")
@@ -962,8 +962,22 @@ class OpenboxIntegration(unittest.TestCase):
         window.map()
         self.keep_alive.sync()
         self.addCleanup(window.destroy)
-        self.wait_for(lambda: self.backend.foreground() == window.id)
+        self.activate(window)
         return window
+
+    def activate(self, window):
+        """Make ``window`` the active one.
+
+        A freshly started window manager can miss the first activation request,
+        so keep asking until it reports the client as active.
+        """
+        deadline = time.monotonic() + WM_START_TIMEOUT
+        while time.monotonic() < deadline:
+            self.backend.focus(window.id)
+            if self.backend.foreground() == window.id:
+                return
+            time.sleep(WM_POLL_INTERVAL)
+        self.fail("the window manager did not activate the client window")
 
     def test_the_active_window_is_the_client_that_root_window_at_finds(self):
         self.assertEqual(self.backend.root_window_at(*self.spot), self.window.id)
@@ -986,7 +1000,7 @@ class OpenboxIntegration(unittest.TestCase):
         other.map()
         self.keep_alive.sync()
         self.addCleanup(other.destroy)
-        self.wait_for(lambda: self.backend.foreground() == other.id)
+        self.activate(other)
         self.backend.focus(self.window.id)
         self.wait_for(lambda: self.backend.foreground() == self.window.id)
 
