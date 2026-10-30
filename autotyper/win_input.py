@@ -7,12 +7,20 @@ any platform with a fake backend.
 import ctypes
 import time
 
+from .keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+
 VK_RETURN = 0x0D
 VK_TAB = 0x09
 VK_ESCAPE = 0x1B
 VK_LBUTTON = 0x01
 VK_F9 = 0x78
 VK_MENU = 0x12
+
+SYMBOLIC_TO_VK = {
+    KEY_ESCAPE: VK_ESCAPE,
+    KEY_F9: VK_F9,
+    KEY_LEFT_BUTTON: VK_LBUTTON,
+}
 
 GA_ROOT = 2
 SW_RESTORE = 9
@@ -136,8 +144,14 @@ class WindowsInput:
             *[self._key(scan=unit, flags=self.UNICODE | self.KEYUP) for unit in units],
         )
 
-    def key_down(self, vk):
-        """True while the given virtual key is physically held down."""
+    def key_down(self, key):
+        """True while a key is physically held down.
+
+        ``key`` is a symbolic name from ``keys.py`` or a raw Win32 ``VK_*`` code.
+        """
+        vk = SYMBOLIC_TO_VK.get(key, key)
+        if not isinstance(vk, int):
+            raise ValueError(f"Unknown key: {key!r}")
         return bool(self.user32.GetAsyncKeyState(vk) & 0x8000)
 
     def cursor_pos(self):

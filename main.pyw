@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from autotyper.gui import run  # noqa: E402  (path setup must happen first)
+from autotyper.__main__ import main  # noqa: E402  (path setup must happen first)
 
 if __name__ == "__main__":
-    sys.exit(run() or 0)
+    sys.exit(main() or 0)

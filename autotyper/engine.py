@@ -3,15 +3,19 @@
 The engine is platform independent. It talks to a backend that provides:
 
 * ``type_char(ch)``      - type one character
-* ``key_down(vk)``       - True while a physical key is held
+* ``key_down(key)``      - True while a physical key is held (see ``keys.py``)
 * ``foreground()``       - handle of the focused window
-* ``focus(hwnd)``        - bring a window back to the foreground
+* ``focus(handle)``      - bring a window back to the foreground
+
+A backend that can only activate a whole application (macOS) may also provide
+``same_application(first, second)``; after a resume the engine then accepts
+another window of the target's application as the new target.
 """
 
 import threading
 import time
 
-from .win_input import VK_ESCAPE, VK_F9
+from .keys import KEY_ESCAPE, KEY_F9
 
 POLL_INTERVAL = 0.02
 TICKS_PER_SECOND = 50
@@ -86,14 +90,14 @@ class Typist:
 
     def _f9_pressed(self):
         """True on the rising edge of the F9 key."""
-        down = self.b.key_down(VK_F9)
+        down = self.b.key_down(KEY_F9)
         edge = down and not self._f9_prev
         self._f9_prev = down
         return edge
 
     def _esc(self):
         """True while the Escape key is held."""
-        return self.b.key_down(VK_ESCAPE)
+        return self.b.key_down(KEY_ESCAPE)
 
     def _wait(self):
         """Sleep off the current character's delay in small slices."""
@@ -139,10 +143,20 @@ class Typist:
                     return True
                 self.sleep(POLL_INTERVAL)
         if self.target is not None:
-            self.b.focus(self.target)
-            self.sleep(RESUME_REFOCUS_DELAY)
+            self._refocus()
         self.on_state(STATE_TYPING, "")
         return True
+
+    def _refocus(self):
+        """Bring the target back, adopting its application's front window if needed."""
+        self.b.focus(self.target)
+        self.sleep(RESUME_REFOCUS_DELAY)
+        same_application = getattr(self.b, "same_application", None)
+        if same_application is None:
+            return
+        current = self.b.foreground()
+        if current != self.target and same_application(current, self.target):
+            self.target = current
 
     def run(self):
         """Type the whole plan; returns "done" or "stopped"."""

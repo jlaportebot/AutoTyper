@@ -1,6 +1,6 @@
 """Unit tests for the typing engine.
 
-The engine is exercised against a fake Windows backend so the whole suite
+The engine is exercised against a fake input backend so the whole suite
 runs on any platform.
 """
 
@@ -9,11 +9,13 @@ import unittest
 from typing import Callable
 
 from autotyper.engine import Typist
+from autotyper.keys import KEY_ESCAPE, KEY_F9
 from autotyper.pacing import plan_delays
-from autotyper.win_input import VK_ESCAPE, VK_F9
 
 TARGET = 111
 OTHER = 222
+SIBLING = 112
+MAX_TICKS = 5000
 TEXT = "Hello there.\nThis is a test, with tabs\tand émojis 😀 中文!"
 
 
@@ -32,19 +34,38 @@ class FakeBackend:
         assert self.fg == TARGET, "typed into the wrong window!"
         self.out.append(char)
 
-    def key_down(self, vk):
-        return vk in self.keys
+    def key_down(self, key):
+        return key in self.keys
 
     def foreground(self):
         return self.fg
 
-    def focus(self, hwnd):
+    def focus(self, handle):
         self.focus_calls += 1
-        self.fg = hwnd
+        self.fg = handle
 
     def sleep(self, _seconds):
         self.ticks += 1
         self.script(self)
+
+
+class ApplicationFocusBackend(FakeBackend):
+    """Like macOS: focusing activates the application, whose front window may differ."""
+
+    def __init__(self, front_after_focus):
+        super().__init__()
+        self.front_after_focus = front_after_focus
+
+    def type_char(self, char):
+        assert self.fg in (TARGET, SIBLING), "typed into another application!"
+        self.out.append(char)
+
+    def focus(self, handle):
+        self.focus_calls += 1
+        self.fg = self.front_after_focus
+
+    def same_application(self, first, second):
+        return {first, second} <= {TARGET, SIBLING}
 
 
 def make_typist(text=TEXT, backend=None, wpm=120, variation=0.3, **kwargs):
@@ -109,7 +130,7 @@ class EngineControl(unittest.TestCase):
         observed = {}
 
         def script(fake):
-            fake.keys = {VK_F9} if fake.ticks in (50, 51, 150, 151) else set()
+            fake.keys = {KEY_F9} if fake.ticks in (50, 51, 150, 151) else set()
             if fake.ticks == 100:
                 observed["mid"] = len(fake.out)
                 observed["paused"] = typist.paused
@@ -136,6 +157,46 @@ class EngineControl(unittest.TestCase):
         self.assertEqual("".join(backend.out), TEXT)
         self.assertTrue(any(s == "paused" and "switched" in i for s, i in states))
 
+    def run_with_a_manual_pause(self, backend):
+        """Pause once after 10 characters and resume whenever paused; capped in ticks."""
+        typist, backend = make_typist(backend=backend)
+        states = []
+        typist.on_state = lambda state, info="": states.append((state, info))
+        paused_once = []
+
+        def script(fake):
+            if len(fake.out) == 10 and not paused_once:
+                paused_once.append(True)
+                typist.pause()
+            if typist.paused and fake.ticks % 60 == 0:
+                typist.resume()
+            if fake.ticks > MAX_TICKS:
+                typist.stop()
+
+        backend.script = script
+        return backend, states, typist.run()
+
+    def test_resume_accepts_another_window_of_the_same_application(self):
+        backend = ApplicationFocusBackend(front_after_focus=SIBLING)
+        backend, states, result = self.run_with_a_manual_pause(backend)
+        self.assertEqual(result, "done")
+        self.assertEqual("".join(backend.out), TEXT)
+        self.assertEqual(backend.focus_calls, 1)
+        self.assertFalse(any("switched" in info for _state, info in states))
+
+    def test_resume_still_pauses_when_another_application_comes_forward(self):
+        backend = ApplicationFocusBackend(front_after_focus=OTHER)
+        backend, states, result = self.run_with_a_manual_pause(backend)
+        self.assertEqual(result, "stopped")
+        self.assertEqual(len(backend.out), 10)
+        self.assertTrue(any("switched" in info for _state, info in states))
+
+    def test_resume_without_same_application_support_keeps_the_strict_check(self):
+        backend = FakeBackend()
+        backend, states, result = self.run_with_a_manual_pause(backend)
+        self.assertEqual(result, "done")
+        self.assertFalse(any("switched" in info for _state, info in states))
+
     def test_stop_while_paused(self):
         typist, backend = make_typist()
         typist.on_progress = lambda index, _total: index == 7 and typist.pause()
@@ -153,7 +214,7 @@ class EngineControl(unittest.TestCase):
 
         def script(fake):
             if len(fake.out) >= 4:
-                fake.keys.add(VK_ESCAPE)
+                fake.keys.add(KEY_ESCAPE)
 
         backend.script = script
         self.assertEqual(typist.run(), "stopped")
@@ -165,7 +226,7 @@ class EngineControl(unittest.TestCase):
 
         def script(fake):
             if fake.ticks == 20:
-                fake.keys.add(VK_ESCAPE)
+                fake.keys.add(KEY_ESCAPE)
 
         backend.script = script
         self.assertEqual(typist.run(), "stopped")

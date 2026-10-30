@@ -26,15 +26,25 @@ jobs:
       - name: Build the executable
         run: pyinstaller --clean --noconfirm AutoTyper.spec
 
+      # The windowed exe has no console, so the exit code is the smoke-test signal.
+      - name: Smoke-test the executable
+        shell: pwsh
+        run: |
+          $size = (Get-Item dist/AutoTyper.exe).Length
+          if ($size -lt 1MB) { throw "AutoTyper.exe is only $size bytes" }
+          $run = Start-Process -FilePath dist/AutoTyper.exe -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($run.ExitCode -ne 0) { throw "smoke test exited with code $($run.ExitCode)" }
+
       - name: Package a portable zip
         shell: pwsh
         run: |
+          $version = python -c "import autotyper; print(autotyper.__version__)"
           New-Item -ItemType Directory -Force -Path release-package | Out-Null
           Copy-Item dist/AutoTyper.exe release-package/AutoTyper.exe
           Copy-Item "Start AutoTyper.bat" release-package/
           Copy-Item README.md release-package/
           Copy-Item LICENSE release-package/
-          Compress-Archive -Path release-package/* -DestinationPath AutoTyper-v1.0.0-windows-x64.zip
+          Compress-Archive -Path release-package/* -DestinationPath "AutoTyper-$version-windows-x64.zip"
           Get-ChildItem release-package | Format-Table Name, Length
 
       - name: Upload the build artifacts
@@ -43,5 +53,5 @@ jobs:
           name: AutoTyper-windows-x64
           path: |
             dist/AutoTyper.exe
-            AutoTyper-v1.0.0-windows-x64.zip
+            AutoTyper-*-windows-x64.zip
           if-no-files-found: error

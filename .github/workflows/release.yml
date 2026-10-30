@@ -10,14 +10,19 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  RELEASE_REF: ${{ github.event.inputs.tag || github.ref }}
 
 jobs:
-  release:
-    name: Publish the Windows release
+  windows:
+    name: Build Windows release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
 
       - uses: actions/setup-python@v5
         with:
@@ -29,15 +34,140 @@ jobs:
       - name: Build the executable
         run: pyinstaller --clean --noconfirm AutoTyper.spec
 
+      # The windowed exe has no console, so the exit code is the smoke-test signal.
+      - name: Smoke-test the executable
+        shell: pwsh
+        run: |
+          $size = (Get-Item dist/AutoTyper.exe).Length
+          if ($size -lt 1MB) { throw "AutoTyper.exe is only $size bytes" }
+          $run = Start-Process -FilePath dist/AutoTyper.exe -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($run.ExitCode -ne 0) { throw "smoke test exited with code $($run.ExitCode)" }
+
       - name: Package a portable zip
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path release-package | Out-Null
+          New-Item -ItemType Directory -Force -Path release-package, staging | Out-Null
           Copy-Item dist/AutoTyper.exe release-package/AutoTyper.exe
           Copy-Item "Start AutoTyper.bat" release-package/
           Copy-Item README.md release-package/
           Copy-Item LICENSE release-package/
-          Compress-Archive -Path release-package/* -DestinationPath AutoTyper-windows-x64.zip
+          Compress-Archive -Path release-package/* -DestinationPath staging/AutoTyper-windows-x64.zip
+          Copy-Item dist/AutoTyper.exe staging/AutoTyper.exe
+
+      - name: Upload the release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTyper-windows-x64
+          path: staging/*
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux release (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb desktop-file-utils libtk8.6
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip pyinstaller python-xlib
+
+      - name: Build the executable
+        run: pyinstaller --clean --noconfirm AutoTyper.spec
+
+      - name: Smoke-test the executable
+        run: xvfb-run -a tools/smoke_check.sh dist/AutoTyper --smoke-test
+
+      - name: Build the AppImage
+        run: tools/build_appimage.sh ${{ matrix.arch }} dist
+
+      - name: Smoke-test the AppImage
+        run: >
+          xvfb-run -a tools/smoke_check.sh
+          dist/AutoTyper-*-linux-${{ matrix.arch }}.AppImage --appimage-extract-and-run --smoke-test
+
+      - name: Upload the AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTyper-linux-${{ matrix.arch }}
+          path: dist/AutoTyper-*-linux-${{ matrix.arch }}.AppImage
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS release (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: >
+          python -m pip install --upgrade pip pyinstaller
+          pyobjc-framework-Quartz pyobjc-framework-Cocoa pyobjc-framework-ApplicationServices
+
+      - name: Build, ad-hoc sign and package the DMG
+        run: tools/build_dmg.sh dist
+
+      - name: Smoke-test the app bundle
+        run: tools/smoke_check.sh dist/AutoTyper.app/Contents/MacOS/AutoTyper --smoke-test
+
+      - name: Upload the DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTyper-macos-${{ matrix.arch }}
+          path: dist/AutoTyper-*-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - name: Download every build
+        uses: actions/download-artifact@v4
+        with:
+          pattern: AutoTyper-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: List the release files
+        run: ls -l release-assets
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
@@ -46,7 +176,5 @@ jobs:
           name: AutoTyper ${{ github.event.inputs.tag || github.ref_name }}
           draft: false
           prerelease: false
-          files: |
-            dist/AutoTyper.exe
-            AutoTyper-windows-x64.zip
+          files: release-assets/*
           body_path: RELEASE_NOTES.md
