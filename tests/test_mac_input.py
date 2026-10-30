@@ -48,8 +48,13 @@ def front_to_back_windows():
     """Menu bar, a text editor in front of a browser."""
     return [
         window(MENU_BAR_WINDOW, layer=25, owner="Window Server", bounds=(0, 0, 1440, 24)),
-        window(FRONT_WINDOW, name="notes.txt", owner="TextEdit", pid=FRONT_PID,
-               bounds=(100, 100, 400, 300)),
+        window(
+            FRONT_WINDOW,
+            name="notes.txt",
+            owner="TextEdit",
+            pid=FRONT_PID,
+            bounds=(100, 100, 400, 300),
+        ),
         window(BACK_WINDOW, owner="Safari", pid=BACK_PID, bounds=(300, 200, 600, 500)),
     ]
 
@@ -67,8 +72,9 @@ class FakeQuartz:
     kCGWindowListExcludeDesktopElements = 16
     kCGNullWindowID = 0
 
-    def __init__(self, trusted=True, windows=None, held_keys=(), left_held=False,
-                 pointer=(120.0, 240.0)):
+    def __init__(
+        self, trusted=True, windows=None, held_keys=(), left_held=False, pointer=(120.0, 240.0)
+    ):
         self.trusted = trusted
         self.windows = front_to_back_windows() if windows is None else windows
         self.held_keys = set(held_keys)
@@ -92,8 +98,13 @@ class FakeQuartz:
     def CGEventCreateKeyboardEvent(self, source, keycode, key_down):
         if self.fail_event_creation:
             return None
-        return {"kind": "key", "source": source, "keycode": keycode, "down": key_down,
-                "unicode": None}
+        return {
+            "kind": "key",
+            "source": source,
+            "keycode": keycode,
+            "down": key_down,
+            "unicode": None,
+        }
 
     def CGEventKeyboardSetUnicodeString(self, event, length, text):
         event["unicode"] = (length, text)
@@ -101,8 +112,13 @@ class FakeQuartz:
     def CGEventCreateMouseEvent(self, source, mouse_type, point, button):
         if self.fail_event_creation:
             return None
-        return {"kind": "mouse", "source": source, "type": mouse_type,
-                "point": (point.x, point.y), "button": button}
+        return {
+            "kind": "mouse",
+            "source": source,
+            "type": mouse_type,
+            "point": (point.x, point.y),
+            "button": button,
+        }
 
     def CGEventPost(self, tap, event):
         self.posted.append((tap, event))
@@ -223,8 +239,9 @@ class Accessibility(unittest.TestCase):
         self.assertTrue(issubclass(AccessibilityPermissionError, InputBackendError))
 
     def test_missing_pyobjc_raises_an_input_backend_error(self):
-        with mock.patch.dict(sys.modules, {"Quartz": None}), \
-                self.assertRaisesRegex(InputBackendError, "pyobjc"):
+        with mock.patch.dict(sys.modules, {"Quartz": None}), self.assertRaisesRegex(
+            InputBackendError, "pyobjc"
+        ):
             MacInput()
 
 
@@ -274,8 +291,9 @@ class AccessibilityModules(unittest.TestCase):
             self.assertTrue(accessibility_trusted())
 
     def test_helper_skips_a_quartz_without_the_accessibility_functions(self):
-        with self.frameworks(None, QuartzWithoutAccessibility()), \
-                self.assertRaisesRegex(InputBackendError, "pyobjc-framework-ApplicationServices"):
+        with self.frameworks(None, QuartzWithoutAccessibility()), self.assertRaisesRegex(
+            InputBackendError, "pyobjc-framework-ApplicationServices"
+        ):
             accessibility_trusted()
 
     def test_helper_skips_an_application_services_without_the_functions(self):
@@ -285,8 +303,7 @@ class AccessibilityModules(unittest.TestCase):
     def test_backend_loaded_from_real_modules_checks_application_services(self):
         quartz = QuartzWithoutAccessibility()
         services = FakeApplicationServices(trusted=False)
-        with self.frameworks(services, quartz), \
-                self.assertRaises(AccessibilityPermissionError):
+        with self.frameworks(services, quartz), self.assertRaises(AccessibilityPermissionError):
             MacInput()
         self.assertEqual(services.prompts, [{"AXTrustedCheckOptionPrompt": True}])
 
@@ -473,8 +490,9 @@ class Focus(unittest.TestCase):
 
     def test_focus_without_appkit_raises_an_input_backend_error(self):
         backend = MacInput(quartz=self.quartz)
-        with mock.patch.dict(sys.modules, {"AppKit": None}), \
-                self.assertRaisesRegex(InputBackendError, "pyobjc"):
+        with mock.patch.dict(sys.modules, {"AppKit": None}), self.assertRaisesRegex(
+            InputBackendError, "pyobjc"
+        ):
             backend.focus(FRONT_WINDOW)
 
 
@@ -508,10 +526,11 @@ class Click(unittest.TestCase):
     def test_click_moves_then_presses_and_releases_the_left_button(self):
         self.backend.click(30, 40)
         self.assertEqual(
-            [(event["type"], event["point"], event["button"])
-             for event in self.quartz.posted_events()],
-            [("mouse-moved", (30, 40), 0), ("left-down", (30, 40), 0),
-             ("left-up", (30, 40), 0)],
+            [
+                (event["type"], event["point"], event["button"])
+                for event in self.quartz.posted_events()
+            ],
+            [("mouse-moved", (30, 40), 0), ("left-down", (30, 40), 0), ("left-up", (30, 40), 0)],
         )
 
     def test_click_pauses_between_press_and_release(self):

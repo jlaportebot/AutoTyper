@@ -69,9 +69,9 @@ def evaluate_spec(platform):
     fake = FakePyInstaller()
     namespace = {"__name__": "spec", "__file__": str(SPEC), **fake.namespace()}
     code = compile(SPEC.read_text(encoding="utf-8"), str(SPEC), "exec")
-    with mock.patch.object(sys, "platform", platform), \
-            mock.patch.object(sys, "path", list(sys.path)), \
-            mock.patch("os.getcwd", return_value=str(ROOT)):
+    with mock.patch.object(sys, "platform", platform), mock.patch.object(
+        sys, "path", list(sys.path)
+    ), mock.patch("os.getcwd", return_value=str(ROOT)):
         exec(code, namespace)
     return fake.calls
 
@@ -195,7 +195,9 @@ class LinuxAppDirFiles(unittest.TestCase):
     def test_desktop_entry_passes_the_freedesktop_validator(self):
         result = subprocess.run(
             ["desktop-file-validate", str(LINUX_DIR / "AutoTyper.desktop")],
-            capture_output=True, text=True, timeout=SCRIPT_TIMEOUT,
+            capture_output=True,
+            text=True,
+            timeout=SCRIPT_TIMEOUT,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
@@ -206,14 +208,21 @@ class LinuxAppDirFiles(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "file modes are not meaningful on Windows")
     def test_apprun_and_scripts_are_executable(self):
-        for path in (LINUX_DIR / "AppRun", ROOT / "tools" / "build_appimage.sh",
-                     ROOT / "tools" / "build_dmg.sh", ROOT / "tools" / "smoke_check.sh"):
+        for path in (
+            LINUX_DIR / "AppRun",
+            ROOT / "tools" / "build_appimage.sh",
+            ROOT / "tools" / "build_dmg.sh",
+            ROOT / "tools" / "smoke_check.sh",
+        ):
             self.assertTrue(os.access(path, os.X_OK), path.name)
 
 
 def run_script(*args):
     return subprocess.run(
-        [BASH, *map(str, args)], capture_output=True, text=True, timeout=SCRIPT_TIMEOUT,
+        [BASH, *map(str, args)],
+        capture_output=True,
+        text=True,
+        timeout=SCRIPT_TIMEOUT,
         cwd=tempfile.gettempdir(),
     )
 
@@ -348,8 +357,11 @@ class Workflows(unittest.TestCase):
 class ReadmeDependencies(unittest.TestCase):
     def test_readme_lists_every_macos_pyobjc_package(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        for package in ("pyobjc-framework-Quartz", "pyobjc-framework-Cocoa",
-                        "pyobjc-framework-ApplicationServices"):
+        for package in (
+            "pyobjc-framework-Quartz",
+            "pyobjc-framework-Cocoa",
+            "pyobjc-framework-ApplicationServices",
+        ):
             self.assertIn(package, readme)
 
 

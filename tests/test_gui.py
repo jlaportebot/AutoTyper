@@ -96,8 +96,9 @@ class FontCandidates(unittest.TestCase):
 class StartupErrors(unittest.TestCase):
     def test_run_reports_an_unavailable_backend_and_returns_failure(self):
         failure = InputBackendError("no input backend")
-        with mock.patch.object(gui, "create_backend", side_effect=failure), \
-                mock.patch.object(gui, "_show_startup_error") as show:
+        with mock.patch.object(gui, "create_backend", side_effect=failure), mock.patch.object(
+            gui, "_show_startup_error"
+        ) as show:
             self.assertEqual(gui.run(), 1)
         show.assert_called_once_with(failure)
 
@@ -113,8 +114,9 @@ class StartupErrors(unittest.TestCase):
 
     def test_run_does_not_hard_fail_on_non_windows_platforms(self):
         app = mock.Mock()
-        with mock.patch("sys.platform", "linux"), \
-                mock.patch.object(gui, "AutoTyperApp", return_value=app):
+        with mock.patch("sys.platform", "linux"), mock.patch.object(
+            gui, "AutoTyperApp", return_value=app
+        ):
             self.assertEqual(gui.run(), 0)
         app.run.assert_called_once_with()
 
@@ -123,8 +125,9 @@ class StartupErrors(unittest.TestCase):
 class UserInterface(unittest.TestCase):
     def setUp(self):
         self.config_dir = tempfile.TemporaryDirectory()
-        patcher = mock.patch("autotyper.settings.config_base_dir",
-                             return_value=self.config_dir.name)
+        patcher = mock.patch(
+            "autotyper.settings.config_base_dir", return_value=self.config_dir.name
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self.config_dir.cleanup)
@@ -143,8 +146,9 @@ class UserInterface(unittest.TestCase):
 
     def test_run_closes_the_backend_even_if_the_event_loop_fails(self):
         self.backend.close = mock.Mock()
-        with mock.patch.object(self.app.root, "mainloop", side_effect=KeyboardInterrupt), \
-                self.assertRaises(KeyboardInterrupt):
+        with mock.patch.object(
+            self.app.root, "mainloop", side_effect=KeyboardInterrupt
+        ), self.assertRaises(KeyboardInterrupt):
             self.app.run()
         self.backend.close.assert_called_once_with()
 

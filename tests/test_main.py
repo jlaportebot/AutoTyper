@@ -54,8 +54,9 @@ class SmokeTestFailures(unittest.TestCase):
     def test_fails_when_the_display_cannot_be_opened(self):
         import tkinter
 
-        with mock.patch.object(entry, "_smoke_backend", return_value=(FakeBackend(), "")), \
-                mock.patch("tkinter.Tk", side_effect=tkinter.TclError("no display name")):
+        with mock.patch.object(
+            entry, "_smoke_backend", return_value=(FakeBackend(), "")
+        ), mock.patch("tkinter.Tk", side_effect=tkinter.TclError("no display name")):
             code, text = run_smoke()
         self.assertEqual(code, 1)
         self.assertIn(FAIL_MARKER, text)
@@ -82,17 +83,18 @@ class SmokeTestFailures(unittest.TestCase):
 class SmokeBackend(unittest.TestCase):
     def test_uses_the_factory_backend_on_non_mac_platforms(self):
         fake = object()
-        with mock.patch.object(entry, "backend_name", return_value="linux"), \
-                mock.patch.object(entry, "create_backend", return_value=fake):
+        with mock.patch.object(entry, "backend_name", return_value="linux"), mock.patch.object(
+            entry, "create_backend", return_value=fake
+        ):
             backend, note = entry._smoke_backend()
         self.assertIs(backend, fake)
         self.assertEqual(note, "")
 
     def test_macos_without_permission_skips_the_prompting_backend(self):
         created = mock.Mock()
-        with mock.patch.object(entry, "backend_name", return_value="macos"), \
-                mock.patch.object(entry, "create_backend", created), \
-                mock.patch.object(entry, "_accessibility_trusted", return_value=False):
+        with mock.patch.object(entry, "backend_name", return_value="macos"), mock.patch.object(
+            entry, "create_backend", created
+        ), mock.patch.object(entry, "_accessibility_trusted", return_value=False):
             backend, note = entry._smoke_backend()
         created.assert_not_called()
         self.assertIsNotNone(backend)
@@ -100,9 +102,9 @@ class SmokeBackend(unittest.TestCase):
 
     def test_macos_with_permission_uses_the_real_backend(self):
         fake = object()
-        with mock.patch.object(entry, "backend_name", return_value="macos"), \
-                mock.patch.object(entry, "create_backend", return_value=fake), \
-                mock.patch.object(entry, "_accessibility_trusted", return_value=True):
+        with mock.patch.object(entry, "backend_name", return_value="macos"), mock.patch.object(
+            entry, "create_backend", return_value=fake
+        ), mock.patch.object(entry, "_accessibility_trusted", return_value=True):
             backend, note = entry._smoke_backend()
         self.assertIs(backend, fake)
         self.assertEqual(note, "accessibility=granted")
@@ -110,8 +112,9 @@ class SmokeBackend(unittest.TestCase):
 
 class MainDispatch(unittest.TestCase):
     def test_smoke_flag_runs_the_smoke_test_and_not_the_gui(self):
-        with mock.patch.object(entry, "smoke_test", return_value=0) as smoke, \
-                mock.patch("autotyper.gui.run") as run_gui:
+        with mock.patch.object(entry, "smoke_test", return_value=0) as smoke, mock.patch(
+            "autotyper.gui.run"
+        ) as run_gui:
             code = entry.main(["--smoke-test"])
         self.assertEqual(code, 0)
         smoke.assert_called_once_with()

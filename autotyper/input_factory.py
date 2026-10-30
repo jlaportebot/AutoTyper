@@ -47,6 +47,4 @@ def create_backend():
         return MacInput()
     if name == BACKEND_LINUX:
         return _create_linux_backend()
-    raise InputBackendError(
-        f"AutoTyper supports Windows, macOS and Linux, not '{sys.platform}'."
-    )
+    raise InputBackendError(f"AutoTyper supports Windows, macOS and Linux, not '{sys.platform}'.")

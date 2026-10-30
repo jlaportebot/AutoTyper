@@ -93,7 +93,7 @@ class InputStructs(unittest.TestCase):
 
     def test_utf16_surrogate_pair_for_emoji(self):
         data = "😀".encode("utf-16-le")
-        units = [int.from_bytes(data[i:i + 2], "little") for i in (0, 2)]
+        units = [int.from_bytes(data[i : i + 2], "little") for i in (0, 2)]
         self.assertEqual(units, [0xD83D, 0xDE00])
 
 

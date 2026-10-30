@@ -182,14 +182,18 @@ class MacInput:
     def _window_list(self):
         """On-screen windows, frontmost first."""
         quartz = self.quartz
-        options = (quartz.kCGWindowListOptionOnScreenOnly
-                   | quartz.kCGWindowListExcludeDesktopElements)
+        options = (
+            quartz.kCGWindowListOptionOnScreenOnly | quartz.kCGWindowListExcludeDesktopElements
+        )
         return list(quartz.CGWindowListCopyWindowInfo(options, quartz.kCGNullWindowID) or [])
 
     def _normal_windows(self):
         """Application windows, frontmost first (no menu bar, Dock or overlays)."""
-        return [window for window in self._window_list()
-                if window.get(WINDOW_LAYER, NORMAL_WINDOW_LAYER) == NORMAL_WINDOW_LAYER]
+        return [
+            window
+            for window in self._window_list()
+            if window.get(WINDOW_LAYER, NORMAL_WINDOW_LAYER) == NORMAL_WINDOW_LAYER
+        ]
 
     def _find_window(self, handle):
         """The window-list entry for a window number, or None."""

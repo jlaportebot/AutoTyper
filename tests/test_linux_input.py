@@ -99,8 +99,9 @@ class FakeProperty:
 class FakeWindow:
     """Just enough of an Xlib window for the backend."""
 
-    def __init__(self, window_id, parent=None, children=(), properties=None, wm_name=None,
-                 failing=False):
+    def __init__(
+        self, window_id, parent=None, children=(), properties=None, wm_name=None, failing=False
+    ):
         self.id = window_id
         self.parent = parent
         self.children = list(children)
@@ -160,8 +161,11 @@ class FakeDisplay:
         self.closed = False
         self.extensions = {"XTEST"}
         self.keysyms = {
-            XK.XK_Return: KEYCODE_RETURN, XK.XK_Tab: KEYCODE_TAB,
-            XK.XK_Escape: KEYCODE_ESCAPE, XK.XK_F9: KEYCODE_F9, XK.XK_Shift_L: KEYCODE_SHIFT,
+            XK.XK_Return: KEYCODE_RETURN,
+            XK.XK_Tab: KEYCODE_TAB,
+            XK.XK_Escape: KEYCODE_ESCAPE,
+            XK.XK_F9: KEYCODE_F9,
+            XK.XK_Shift_L: KEYCODE_SHIFT,
         }
 
     def has_extension(self, name):
@@ -284,14 +288,14 @@ class PureHelpers(unittest.TestCase):
         self.assertNotIn(chr(XK.XK_Return & 0x7F), table)
 
     def test_spare_keycode_is_the_highest_free_one_below_the_maximum(self):
-        self.assertEqual(find_spare_keycode(make_mapping(), MIN_KEYCODE, MAX_KEYCODE),
-                         SPARE_KEYCODE)
+        self.assertEqual(
+            find_spare_keycode(make_mapping(), MIN_KEYCODE, MAX_KEYCODE), SPARE_KEYCODE
+        )
 
     def test_spare_keycode_skips_keycodes_that_are_in_use(self):
         mapping = make_mapping()
         mapping[SPARE_KEYCODE - MIN_KEYCODE][0] = ord("x")
-        self.assertEqual(find_spare_keycode(mapping, MIN_KEYCODE, MAX_KEYCODE),
-                         SPARE_KEYCODE - 1)
+        self.assertEqual(find_spare_keycode(mapping, MIN_KEYCODE, MAX_KEYCODE), SPARE_KEYCODE - 1)
 
     def test_spare_keycode_raises_when_every_keycode_is_mapped(self):
         mapping = [[ord("x")] * KEYSYMS_PER_KEYCODE for _ in make_mapping()]
@@ -371,14 +375,16 @@ class WindowTitles(unittest.TestCase):
 class StartUp(unittest.TestCase):
     def test_reports_a_missing_display_in_plain_words(self):
         failure = error.DisplayConnectionError(":99", "refused")
-        with mock.patch.object(linux_input.display, "Display", side_effect=failure), \
-                self.assertRaisesRegex(LinuxInputError, "X11 display"):
+        with mock.patch.object(
+            linux_input.display, "Display", side_effect=failure
+        ), self.assertRaisesRegex(LinuxInputError, "X11 display"):
             LinuxInput()
 
     def test_reports_an_invalid_display_name(self):
         failure = error.DisplayNameError("bogus")
-        with mock.patch.object(linux_input.display, "Display", side_effect=failure), \
-                self.assertRaisesRegex(LinuxInputError, "X11 display"):
+        with mock.patch.object(
+            linux_input.display, "Display", side_effect=failure
+        ), self.assertRaisesRegex(LinuxInputError, "X11 display"):
             LinuxInput()
 
     def test_start_up_errors_are_input_backend_errors(self):
@@ -389,7 +395,11 @@ class StartUp(unittest.TestCase):
         env["PYTHONPATH"] = REPO_ROOT
         result = subprocess.run(
             [sys.executable, "-c", "import autotyper.linux_input"],
-            env=env, cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+            env=env,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -437,8 +447,11 @@ class TypeChar(unittest.TestCase):
 
     def test_uppercase_letter_holds_shift(self):
         self.backend.type_char("A")
-        expected = [(X.KeyPress, KEYCODE_SHIFT), *self.press_release(KEYCODE_A),
-                    (X.KeyRelease, KEYCODE_SHIFT)]
+        expected = [
+            (X.KeyPress, KEYCODE_SHIFT),
+            *self.press_release(KEYCODE_A),
+            (X.KeyRelease, KEYCODE_SHIFT),
+        ]
         self.assertEqual(self.xtest.events, expected)
 
     def test_shifted_symbol_holds_shift(self):
@@ -454,8 +467,11 @@ class TypeChar(unittest.TestCase):
     def test_caps_lock_makes_a_lowercase_letter_hold_shift(self):
         self.set_caps_lock(True)
         self.backend.type_char("a")
-        expected = [(X.KeyPress, KEYCODE_SHIFT), *self.press_release(KEYCODE_A),
-                    (X.KeyRelease, KEYCODE_SHIFT)]
+        expected = [
+            (X.KeyPress, KEYCODE_SHIFT),
+            *self.press_release(KEYCODE_A),
+            (X.KeyRelease, KEYCODE_SHIFT),
+        ]
         self.assertEqual(self.xtest.events, expected)
 
     def test_caps_lock_lets_an_uppercase_letter_go_without_shift(self):
@@ -498,8 +514,9 @@ class TypeChar(unittest.TestCase):
         sleeps = self.record_state_at_each_sleep()
         self.backend.type_char("é")
         key_sent, bound = len(self.press_release(SPARE_KEYCODE)), 1
-        holds = [seconds for seconds, events, remaps in sleeps
-                 if (events, remaps) == (key_sent, bound)]
+        holds = [
+            seconds for seconds, events, remaps in sleeps if (events, remaps) == (key_sent, bound)
+        ]
         self.assertTrue(holds and max(holds) >= MIN_UNICODE_HOLD, sleeps)
 
     def test_plain_ascii_never_waits_for_clients(self):
@@ -665,7 +682,7 @@ class FocusAndClick(unittest.TestCase):
 
     def test_focus_asks_the_window_manager_as_a_pager(self):
         self.backend.focus(55)
-        (event, mask), = self.display.root.messages
+        ((event, mask),) = self.display.root.messages
         self.assertEqual(event.client_type, self.display.intern_atom("_NET_ACTIVE_WINDOW"))
         self.assertEqual(event.data[0], 32)
         self.assertEqual(event.data[1][0], SOURCE_PAGER)
@@ -688,9 +705,14 @@ class FocusAndClick(unittest.TestCase):
 
     def test_click_moves_then_presses_and_releases_button_one(self):
         self.backend.click(30, 40)
-        self.assertEqual(self.xtest.events, [
-            (X.MotionNotify, 30, 40), (X.ButtonPress, 1), (X.ButtonRelease, 1),
-        ])
+        self.assertEqual(
+            self.xtest.events,
+            [
+                (X.MotionNotify, 30, 40),
+                (X.ButtonPress, 1),
+                (X.ButtonRelease, 1),
+            ],
+        )
 
     def test_click_pauses_between_press_and_release(self):
         self.backend.click(30, 40)
@@ -754,7 +776,14 @@ class XvfbIntegration(unittest.TestCase):
         screen = self.observer.screen()
         width, height = self.WINDOW_SIZE
         window = screen.root.create_window(
-            x, y, width, height, 0, screen.root_depth, X.InputOutput, X.CopyFromParent,
+            x,
+            y,
+            width,
+            height,
+            0,
+            screen.root_depth,
+            X.InputOutput,
+            X.CopyFromParent,
             event_mask=self.EVENT_MASK,
         )
         window.map()
@@ -778,8 +807,11 @@ class XvfbIntegration(unittest.TestCase):
         return events
 
     def key_events(self):
-        return [(ev.type, ev.detail, ev.state) for ev in self.drain_events()
-                if ev.type in (X.KeyPress, X.KeyRelease)]
+        return [
+            (ev.type, ev.detail, ev.state)
+            for ev in self.drain_events()
+            if ev.type in (X.KeyPress, X.KeyRelease)
+        ]
 
     def keycode(self, keysym):
         return self.observer.keysym_to_keycode(keysym)
@@ -787,13 +819,16 @@ class XvfbIntegration(unittest.TestCase):
     def test_lowercase_letter_arrives_as_an_unshifted_key(self):
         self.backend.type_char("a")
         expected_code = self.keycode(XK.XK_a)
-        self.assertEqual([(t, d, s & X.ShiftMask) for t, d, s in self.key_events()],
-                         [(X.KeyPress, expected_code, 0), (X.KeyRelease, expected_code, 0)])
+        self.assertEqual(
+            [(t, d, s & X.ShiftMask) for t, d, s in self.key_events()],
+            [(X.KeyPress, expected_code, 0), (X.KeyRelease, expected_code, 0)],
+        )
 
     def test_uppercase_letter_arrives_with_shift_held(self):
         self.backend.type_char("A")
-        letter = [(t, s & X.ShiftMask) for t, d, s in self.key_events()
-                  if d == self.keycode(XK.XK_a)]
+        letter = [
+            (t, s & X.ShiftMask) for t, d, s in self.key_events() if d == self.keycode(XK.XK_a)
+        ]
         self.assertEqual(letter, [(X.KeyPress, X.ShiftMask), (X.KeyRelease, X.ShiftMask)])
 
     def toggle_caps_lock(self):
@@ -807,8 +842,9 @@ class XvfbIntegration(unittest.TestCase):
         self.addCleanup(self.toggle_caps_lock)
         self.drain_events()
         self.backend.type_char("a")
-        letter_state = [s for t, d, s in self.key_events()
-                        if t == X.KeyPress and d == self.keycode(XK.XK_a)]
+        letter_state = [
+            s for t, d, s in self.key_events() if t == X.KeyPress and d == self.keycode(XK.XK_a)
+        ]
         self.assertEqual([bool(s & X.LockMask) for s in letter_state], [True])
         self.assertEqual([bool(s & X.ShiftMask) for s in letter_state], [True])
 
@@ -854,8 +890,7 @@ class XvfbIntegration(unittest.TestCase):
     def test_click_delivers_a_button_press_at_the_requested_spot(self):
         self.backend.click(50, 40)
         presses = [ev for ev in self.drain_events() if ev.type == X.ButtonPress]
-        self.assertEqual([(ev.detail, ev.event_x, ev.event_y) for ev in presses],
-                         [(1, 50, 40)])
+        self.assertEqual([(ev.detail, ev.event_x, ev.event_y) for ev in presses], [(1, 50, 40)])
         self.assertEqual(self.backend.cursor_pos(), (50, 40))
 
     def test_foreground_reports_the_focused_window(self):
@@ -877,8 +912,10 @@ class XvfbIntegration(unittest.TestCase):
 
     def test_window_title_reads_the_utf8_name(self):
         self.window.change_property(
-            self.observer.intern_atom("_NET_WM_NAME"), self.observer.intern_atom("UTF8_STRING"),
-            8, "Tëst ✓".encode(),
+            self.observer.intern_atom("_NET_WM_NAME"),
+            self.observer.intern_atom("UTF8_STRING"),
+            8,
+            "Tëst ✓".encode(),
         )
         self.observer.sync()
         self.assertEqual(self.backend.window_title(self.window.id), "Tëst ✓")
@@ -955,7 +992,14 @@ class OpenboxIntegration(unittest.TestCase):
     def open_client_window(self):
         screen = self.keep_alive.screen()
         window = screen.root.create_window(
-            100, 100, 200, 100, 0, screen.root_depth, X.InputOutput, X.CopyFromParent,
+            100,
+            100,
+            200,
+            100,
+            0,
+            screen.root_depth,
+            X.InputOutput,
+            X.CopyFromParent,
             event_mask=X.KeyPressMask,
         )
         window.set_wm_name("WM client")
@@ -993,7 +1037,13 @@ class OpenboxIntegration(unittest.TestCase):
 
     def test_focus_returns_to_the_client_after_another_window_takes_it(self):
         other = self.keep_alive.screen().root.create_window(
-            400, 400, 100, 100, 0, self.keep_alive.screen().root_depth, X.InputOutput,
+            400,
+            400,
+            100,
+            100,
+            0,
+            self.keep_alive.screen().root_depth,
+            X.InputOutput,
             X.CopyFromParent,
         )
         other.set_wm_name("other")

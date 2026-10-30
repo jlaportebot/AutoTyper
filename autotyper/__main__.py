@@ -64,8 +64,11 @@ def smoke_test():
 def main(argv=None):
     """Launch the AutoTyper GUI on any supported operating system."""
     parser = argparse.ArgumentParser(prog="AutoTyper", description="Human-paced text entry.")
-    parser.add_argument("--smoke-test", action="store_true",
-                        help="check the build starts, print AUTOTYPER_SMOKE_OK and exit")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="check the build starts, print AUTOTYPER_SMOKE_OK and exit",
+    )
     options, _ignored = parser.parse_known_args(argv)
     if options.smoke_test:
         return smoke_test()

@@ -39,14 +39,16 @@ class ConfigBaseDir(unittest.TestCase):
             self.assertEqual(config_base_dir(), expected)
 
     def test_macos_ignores_xdg_config_home(self):
-        with mock.patch("sys.platform", "darwin"), \
-                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/elsewhere"}):
+        with mock.patch("sys.platform", "darwin"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": "/elsewhere"}
+        ):
             self.assertNotEqual(config_base_dir(), "/elsewhere")
 
     def test_linux_uses_xdg_config_home(self):
         xdg = os.path.join(self.home, "xdg")
-        with mock.patch("sys.platform", "linux"), \
-                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": xdg}):
+        with mock.patch("sys.platform", "linux"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": xdg}
+        ):
             self.assertEqual(config_base_dir(), xdg)
 
     def test_linux_falls_back_to_dot_config_when_xdg_unset(self):
@@ -55,8 +57,9 @@ class ConfigBaseDir(unittest.TestCase):
             self.assertEqual(config_base_dir(), os.path.join(self.home, ".config"))
 
     def test_linux_falls_back_to_dot_config_when_xdg_is_empty(self):
-        with mock.patch("sys.platform", "linux"), \
-                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": ""}):
+        with mock.patch("sys.platform", "linux"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": ""}
+        ):
             self.assertEqual(config_base_dir(), os.path.join(self.home, ".config"))
 
     def test_other_platforms_use_the_linux_layout(self):
@@ -65,8 +68,9 @@ class ConfigBaseDir(unittest.TestCase):
             self.assertEqual(config_base_dir(), os.path.join(self.home, ".config"))
 
     def test_settings_path_nests_under_the_app_folder(self):
-        with mock.patch("sys.platform", "linux"), \
-                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": self.home}):
+        with mock.patch("sys.platform", "linux"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": self.home}
+        ):
             expected = os.path.join(self.home, "AutoTyper", "settings.json")
             self.assertEqual(settings_path(), expected)
 
@@ -129,8 +133,9 @@ class Settings(unittest.TestCase):
         blocker = os.path.join(self.tempdir, "blocker")
         with open(blocker, "w", encoding="utf-8") as handle:
             handle.write("a file where a directory is needed")
-        with mock.patch("autotyper.settings.config_base_dir", return_value=blocker), \
-                self.assertLogs("autotyper.settings", level="WARNING") as logged:
+        with mock.patch(
+            "autotyper.settings.config_base_dir", return_value=blocker
+        ), self.assertLogs("autotyper.settings", level="WARNING") as logged:
             save_settings({"wpm": 10})
         self.assertIn("Could not save settings", logged.output[0])
 

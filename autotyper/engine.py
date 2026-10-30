@@ -30,8 +30,16 @@ RESULT_STOPPED = "stopped"
 class Typist:
     """Types a plan of ``(character, delay)`` pairs into a target window."""
 
-    def __init__(self, backend, plan, target=None, on_progress=None, on_state=None,
-                 resume_countdown=2, sleep=time.sleep):
+    def __init__(
+        self,
+        backend,
+        plan,
+        target=None,
+        on_progress=None,
+        on_state=None,
+        resume_countdown=2,
+        sleep=time.sleep,
+    ):
         self.b = backend
         self.plan = plan
         self.target = target

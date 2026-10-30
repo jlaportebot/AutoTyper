@@ -138,7 +138,7 @@ class WindowsInput:
         if ch == "\r":
             return None
         data = ch.encode("utf-16-le")
-        units = [int.from_bytes(data[i:i + 2], "little") for i in range(0, len(data), 2)]
+        units = [int.from_bytes(data[i : i + 2], "little") for i in range(0, len(data), 2)]
         self._send(
             *[self._key(scan=unit, flags=self.UNICODE) for unit in units],
             *[self._key(scan=unit, flags=self.UNICODE | self.KEYUP) for unit in units],

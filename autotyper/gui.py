@@ -132,8 +132,18 @@ class AutoTyperApp:
 
     def _slider(self, parent, label, low, high, value, unit="", on_change=None):
         """Create a horizontal slider in the current visual style."""
-        return Slider(parent, label, low, high, value, unit, on_change,
-                      self.font_ui, self.font_label, self.font_mono)
+        return Slider(
+            parent,
+            label,
+            low,
+            high,
+            value,
+            unit,
+            on_change,
+            self.font_ui,
+            self.font_label,
+            self.font_mono,
+        )
 
     def _section(self, parent, number, title):
         """Create a numbered section header and return its body frame."""
@@ -142,10 +152,12 @@ class AutoTyperApp:
         wrap.pack(fill="x", padx=22, pady=(14, 0))
         head = tk.Frame(wrap, bg=COLORS["bg"])
         head.pack(fill="x")
-        tk.Label(head, text=number, font=self.font_label, fg=COLORS["accent"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(head, text="  " + title.upper(), font=self.font_label,
-                 fg=COLORS["dim"], bg=COLORS["bg"]).pack(side="left")
+        tk.Label(
+            head, text=number, font=self.font_label, fg=COLORS["accent"], bg=COLORS["bg"]
+        ).pack(side="left")
+        tk.Label(
+            head, text="  " + title.upper(), font=self.font_label, fg=COLORS["dim"], bg=COLORS["bg"]
+        ).pack(side="left")
         tk.Frame(head, bg=COLORS["line"], height=1).pack(
             side="left", fill="x", expand=True, padx=(10, 0), pady=(2, 0)
         )
@@ -164,12 +176,19 @@ class AutoTyperApp:
 
         header = tk.Frame(self.main_view, bg=COLORS["bg"])
         header.pack(fill="x", padx=22, pady=(20, 0))
-        tk.Label(header, text="autotyper", font=self.font_title, fg=COLORS["text"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text="_", font=self.font_title, fg=COLORS["accent"],
-                 bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text="F9 pause · ESC stop", font=self.font_label,
-                 fg=COLORS["dim"], bg=COLORS["bg"]).pack(side="right", pady=(8, 0))
+        tk.Label(
+            header, text="autotyper", font=self.font_title, fg=COLORS["text"], bg=COLORS["bg"]
+        ).pack(side="left")
+        tk.Label(header, text="_", font=self.font_title, fg=COLORS["accent"], bg=COLORS["bg"]).pack(
+            side="left"
+        )
+        tk.Label(
+            header,
+            text="F9 pause · ESC stop",
+            font=self.font_label,
+            fg=COLORS["dim"],
+            bg=COLORS["bg"],
+        ).pack(side="right", pady=(8, 0))
 
         self._build_target_section()
         self._build_text_section()
@@ -181,11 +200,18 @@ class AutoTyperApp:
         """Section 01: pick the window and spot to type into."""
         tk = self.tk
         _, body = self._section(self.main_view, "01", "Target")
-        self.spot_dot = tk.Label(body, text="●", font=self.font_ui, fg=COLORS["line"],
-                                 bg=COLORS["bg"])
+        self.spot_dot = tk.Label(
+            body, text="●", font=self.font_ui, fg=COLORS["line"], bg=COLORS["bg"]
+        )
         self.spot_dot.pack(side="left")
-        self.spot_label = tk.Label(body, text="No spot picked", font=self.font_ui,
-                                   fg=COLORS["dim"], bg=COLORS["bg"], anchor="w")
+        self.spot_label = tk.Label(
+            body,
+            text="No spot picked",
+            font=self.font_ui,
+            fg=COLORS["dim"],
+            bg=COLORS["bg"],
+            anchor="w",
+        )
         self.spot_label.pack(side="left", padx=(6, 0), fill="x", expand=True)
         self.pick_button = self._button(body, "Pick spot", self.pick)
         self.pick_button.pack(side="right")
@@ -199,9 +225,18 @@ class AutoTyperApp:
         frame = tk.Frame(body, bg=COLORS["line"], padx=1, pady=1)
         frame.pack(fill="both", expand=True)
         self.text_box = tk.Text(
-            frame, wrap="word", undo=True, font=(self.ui, 11), bg=COLORS["field"],
-            fg=COLORS["text"], insertbackground=COLORS["accent"],
-            selectbackground="#2f3a1a", relief="flat", padx=12, pady=10, height=8,
+            frame,
+            wrap="word",
+            undo=True,
+            font=(self.ui, 11),
+            bg=COLORS["field"],
+            fg=COLORS["text"],
+            insertbackground=COLORS["accent"],
+            selectbackground="#2f3a1a",
+            relief="flat",
+            padx=12,
+            pady=10,
+            height=8,
             highlightthickness=0,
         )
         self.text_box.pack(fill="both", expand=True)
@@ -209,8 +244,7 @@ class AutoTyperApp:
 
         tools = tk.Frame(body, bg=COLORS["bg"])
         tools.pack(fill="x", pady=(6, 0))
-        self.count_label = tk.Label(tools, font=self.font_label, fg=COLORS["dim"],
-                                    bg=COLORS["bg"])
+        self.count_label = tk.Label(tools, font=self.font_label, fg=COLORS["dim"], bg=COLORS["bg"])
         self.count_label.pack(side="left")
         self._button(tools, "Clear", self.clear_text).pack(side="right")
         self._button(tools, "Open .txt", self.open_file).pack(side="right", padx=(0, 6))
@@ -235,41 +269,43 @@ class AutoTyperApp:
         tk = self.tk
         footer = tk.Frame(self.main_view, bg=COLORS["bg"])
         footer.pack(fill="x", padx=22, pady=(16, 20))
-        self.eta_label = tk.Label(footer, font=self.font_mono, fg=COLORS["dim"],
-                                  bg=COLORS["bg"])
+        self.eta_label = tk.Label(footer, font=self.font_mono, fg=COLORS["dim"], bg=COLORS["bg"])
         self.eta_label.pack(side="left")
         self.go_button = self._button(footer, "Go  →", self.go, kind="primary")
         self.go_button.pack(side="right")
-        self.message_label = tk.Label(self.main_view, text="", font=self.font_ui,
-                                      fg=COLORS["warn"], bg=COLORS["bg"])
+        self.message_label = tk.Label(
+            self.main_view, text="", font=self.font_ui, fg=COLORS["warn"], bg=COLORS["bg"]
+        )
         self.message_label.pack(fill="x", padx=22, pady=(0, 10))
 
     def _build_mini_bar(self):
         """The floating control bar shown while typing."""
         tk = self.tk
-        self.mini = tk.Frame(self.root, bg=COLORS["panel"], highlightthickness=1,
-                             highlightbackground=COLORS["line"])
+        self.mini = tk.Frame(
+            self.root, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["line"]
+        )
         row = tk.Frame(self.mini, bg=COLORS["panel"])
         row.pack(fill="x", padx=12, pady=(10, 6))
-        self.mini_state = tk.Label(row, text="TYPING", font=self.font_label,
-                                   fg=COLORS["accent"], bg=COLORS["panel"])
+        self.mini_state = tk.Label(
+            row, text="TYPING", font=self.font_label, fg=COLORS["accent"], bg=COLORS["panel"]
+        )
         self.mini_state.pack(side="left")
-        self.mini_percent = tk.Label(row, font=self.font_mono, fg=COLORS["text"],
-                                     bg=COLORS["panel"])
+        self.mini_percent = tk.Label(
+            row, font=self.font_mono, fg=COLORS["text"], bg=COLORS["panel"]
+        )
         self.mini_percent.pack(side="right")
-        self.progress_bar = tk.Canvas(self.mini, height=4, bg=COLORS["line"],
-                                      highlightthickness=0)
+        self.progress_bar = tk.Canvas(self.mini, height=4, bg=COLORS["line"], highlightthickness=0)
         self.progress_bar.pack(fill="x", padx=12)
         self.progress_fill = self.progress_bar.create_rectangle(
             0, 0, 0, 4, fill=COLORS["accent"], width=0
         )
-        self.mini_info = tk.Label(self.mini, text="", font=self.font_ui, fg=COLORS["dim"],
-                                  bg=COLORS["panel"], anchor="w")
+        self.mini_info = tk.Label(
+            self.mini, text="", font=self.font_ui, fg=COLORS["dim"], bg=COLORS["panel"], anchor="w"
+        )
         self.mini_info.pack(fill="x", padx=12, pady=(6, 0))
         buttons = tk.Frame(self.mini, bg=COLORS["panel"])
         buttons.pack(fill="x", padx=12, pady=(6, 12))
-        self.mini_pause = self._button(buttons, "Pause", self.toggle_pause,
-                                       bg=COLORS["panel"])
+        self.mini_pause = self._button(buttons, "Pause", self.toggle_pause, bg=COLORS["panel"])
         self.mini_pause.pack(side="left")
         self._button(buttons, "Stop", self.stop_typing).pack(side="right")
 
@@ -303,18 +339,19 @@ class AutoTyperApp:
         if not text:
             self.eta_label.config(text="")
             return
-        seconds = estimate_seconds(text, self.slider_wpm.get(),
-                                   self.slider_variation.get() / 100)
+        seconds = estimate_seconds(text, self.slider_wpm.get(), self.slider_variation.get() / 100)
         self.eta_label.config(text=f"≈ {fmt_time(seconds)}")
 
     def persist(self):
         """Save the current settings and text to disk."""
-        save_settings({
-            "wpm": self.slider_wpm.get(),
-            "variation": self.slider_variation.get(),
-            "delay": self.slider_delay.get(),
-            "text": self.current_text(),
-        })
+        save_settings(
+            {
+                "wpm": self.slider_wpm.get(),
+                "variation": self.slider_variation.get(),
+                "delay": self.slider_delay.get(),
+                "text": self.current_text(),
+            }
+        )
 
     def say(self, message, color=None):
         """Show a status message under the main view."""
@@ -404,8 +441,13 @@ class AutoTyperApp:
         variation = self.slider_variation.get() / 100
         delay = self.slider_delay.get()
         plan = plan_delays(text, wpm, variation)
-        typist = Typist(self.backend, plan, target=self.state["handle"],
-                        on_progress=self.ui_progress, on_state=self.ui_state)
+        typist = Typist(
+            self.backend,
+            plan,
+            target=self.state["handle"],
+            on_progress=self.ui_progress,
+            on_state=self.ui_state,
+        )
         self.state["typist"] = typist
         self.go_button.set(enabled=False)
         self.show_mini()
@@ -457,8 +499,7 @@ class AutoTyperApp:
 
     def _overlaps_spot(self, x, y, spot_x, spot_y):
         """True if the mini bar would cover the target spot."""
-        return (x - 10 <= spot_x <= x + MINI_WIDTH + 10
-                and y - 40 <= spot_y <= y + MINI_HEIGHT + 10)
+        return x - 10 <= spot_x <= x + MINI_WIDTH + 10 and y - 40 <= spot_y <= y + MINI_HEIGHT + 10
 
     def show_main(self):
         """Restore the full window."""

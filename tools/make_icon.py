@@ -58,4 +58,3 @@ def build_master() -> Image.Image:
     _type_lines(draw, top=top, line_h=line_h, gap=gap)
     _caret(draw, top=top, line_h=line_h, gap=gap)
     return image
-

@@ -53,8 +53,7 @@ class CreateBackend(unittest.TestCase):
         self.assert_picks("linux", "linux_input", "LinuxInput")
 
     def test_raises_naming_supported_systems_on_unsupported_platform(self):
-        with mock.patch("sys.platform", "freebsd14"), \
-                self.assertRaises(RuntimeError) as caught:
+        with mock.patch("sys.platform", "freebsd14"), self.assertRaises(RuntimeError) as caught:
             create_backend()
         message = str(caught.exception)
         for system in ("Windows", "macOS", "Linux"):
@@ -62,8 +61,7 @@ class CreateBackend(unittest.TestCase):
         self.assertIn("freebsd14", message)
 
     def test_unsupported_platform_error_is_an_input_backend_error(self):
-        with mock.patch("sys.platform", "freebsd14"), \
-                self.assertRaises(InputBackendError):
+        with mock.patch("sys.platform", "freebsd14"), self.assertRaises(InputBackendError):
             create_backend()
 
     def test_missing_python_xlib_raises_an_input_backend_error(self):
@@ -75,8 +73,9 @@ class CreateBackend(unittest.TestCase):
     def test_propagates_backend_start_up_errors(self):
         patcher, backend_class = stub_backend_module("linux_input", "LinuxInput")
         backend_class.side_effect = RuntimeError("no X")
-        with mock.patch("sys.platform", "linux"), patcher, \
-                self.assertRaisesRegex(RuntimeError, "no X"):
+        with mock.patch("sys.platform", "linux"), patcher, self.assertRaisesRegex(
+            RuntimeError, "no X"
+        ):
             create_backend()
 
 
