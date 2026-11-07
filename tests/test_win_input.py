@@ -8,10 +8,18 @@ import ctypes
 import unittest
 from unittest import mock
 
-from autotyper.keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from autotyper.keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 from autotyper.win_input import (
     SYMBOLIC_TO_VK,
     VK_BACK,
+    VK_CONTROL,
     VK_ESCAPE,
     VK_F9,
     VK_LBUTTON,
@@ -124,6 +132,39 @@ class ControlCharacters(unittest.TestCase):
     def test_carriage_return_is_ignored(self):
         self.backend.type_char("\r")
         self.backend.press_vk.assert_not_called()
+
+
+class FormattingShortcuts(unittest.TestCase):
+    def setUp(self):
+        self.backend = make_backend()
+        self.backend.INPUT, self.backend.KEYBDINPUT, _mouse = build_input_structs(ctypes)
+        self.backend._send = mock.Mock()
+
+    def sent(self):
+        (inputs,) = [call.args for call in self.backend._send.call_args_list]
+        return [(item.ki.wVk, bool(item.ki.dwFlags & WindowsInput.KEYUP)) for item in inputs]
+
+    def test_each_style_is_ctrl_plus_its_letter_in_one_batch(self):
+        for key, letter in ((FORMAT_BOLD, "B"), (FORMAT_ITALIC, "I"), (FORMAT_UNDERLINE, "U")):
+            self.backend._send.reset_mock()
+            self.backend.toggle_format(key)
+            self.assertEqual(
+                self.sent(),
+                [
+                    (VK_CONTROL, False),
+                    (ord(letter), False),
+                    (ord(letter), True),
+                    (VK_CONTROL, True),
+                ],
+            )
+
+    def test_control_virtual_key_is_win32_vk_control(self):
+        self.assertEqual(VK_CONTROL, 0x11)
+
+    def test_unknown_formatting_key_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            self.backend.toggle_format("format:sparkle")
+        self.backend._send.assert_not_called()
 
 
 if __name__ == "__main__":

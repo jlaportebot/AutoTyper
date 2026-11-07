@@ -3,6 +3,7 @@
 The engine is platform independent. It talks to a backend that provides:
 
 * ``type_char(ch)``      - type one character (``"\\b"`` is Backspace)
+* ``toggle_format(key)`` - press a formatting shortcut from ``keys.FORMAT_KEYS``
 * ``key_down(key)``      - True while a physical key is held (see ``keys.py``)
 * ``foreground()``       - handle of the focused window
 * ``focus(handle)``      - bring a window back to the foreground
@@ -15,7 +16,7 @@ another window of the target's application as the new target.
 import threading
 import time
 
-from .keys import KEY_ESCAPE, KEY_F9
+from .keys import FORMAT_KEYS, KEY_ESCAPE, KEY_F9
 from .typos import final_text
 
 POLL_INTERVAL = 0.02
@@ -198,7 +199,10 @@ class Typist:
         if self.target is not None and self.b.foreground() != self.target:
             self.pause("Paused - you switched windows")
             return False
-        self.b.type_char(char)
+        if char in FORMAT_KEYS:
+            self.b.toggle_format(char)
+        else:
+            self.b.type_char(char)
         self.pos += 1
         self._remaining = None
         self.on_progress(self.pos, len(self.plan))

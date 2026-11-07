@@ -10,7 +10,14 @@ from unittest import mock
 
 from autotyper import mac_input
 from autotyper.errors import InputBackendError
-from autotyper.keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from autotyper.keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 from autotyper.mac_input import (
     AccessibilityPermissionError,
     MacInput,
@@ -21,6 +28,11 @@ from autotyper.mac_input import (
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 48
 KEYCODE_BACKSPACE = 51
+KEYCODE_COMMAND = 55
+KEYCODE_B = 11
+KEYCODE_I = 34
+KEYCODE_U = 32
+COMMAND_FLAG = 0x100000
 KEYCODE_ESCAPE = 53
 KEYCODE_F9 = 101
 FRONT_WINDOW = 42
@@ -72,6 +84,7 @@ class FakeQuartz:
     kCGWindowListOptionOnScreenOnly = 1
     kCGWindowListExcludeDesktopElements = 16
     kCGNullWindowID = 0
+    kCGEventFlagMaskCommand = 0x100000
 
     def __init__(
         self, trusted=True, windows=None, held_keys=(), left_held=False, pointer=(120.0, 240.0)
@@ -109,6 +122,9 @@ class FakeQuartz:
 
     def CGEventKeyboardSetUnicodeString(self, event, length, text):
         event["unicode"] = (length, text)
+
+    def CGEventSetFlags(self, event, flags):
+        event["flags"] = flags
 
     def CGEventCreateMouseEvent(self, source, mouse_type, point, button):
         if self.fail_event_creation:
@@ -343,6 +359,46 @@ class TypeChar(unittest.TestCase):
     def test_backspace_presses_delete(self):
         self.backend.type_char("\b")
         self.assertEqual(self.keystrokes(), [(KEYCODE_BACKSPACE, True), (KEYCODE_BACKSPACE, False)])
+
+    def test_formatting_shortcuts_press_command_and_the_letter(self):
+        for key, letter in (
+            (FORMAT_BOLD, KEYCODE_B),
+            (FORMAT_ITALIC, KEYCODE_I),
+            (FORMAT_UNDERLINE, KEYCODE_U),
+        ):
+            self.quartz.posted.clear()
+            self.backend.toggle_format(key)
+            self.assertEqual(
+                self.keystrokes(),
+                [
+                    (KEYCODE_COMMAND, True),
+                    (letter, True),
+                    (letter, False),
+                    (KEYCODE_COMMAND, False),
+                ],
+            )
+            flags = [event.get("flags") for event in self.quartz.posted_events()]
+            self.assertEqual(flags, [COMMAND_FLAG, COMMAND_FLAG, COMMAND_FLAG, 0])
+
+    def test_formatting_shortcut_fails_loudly_when_macos_refuses_the_event(self):
+        self.quartz.fail_event_creation = True
+        with self.assertRaises(OSError):
+            self.backend.toggle_format(FORMAT_BOLD)
+
+    def test_command_is_released_even_if_the_letter_fails(self):
+        create = self.quartz.CGEventCreateKeyboardEvent
+
+        def failing_on_letter(source, keycode, key_down):
+            return None if keycode == KEYCODE_B else create(source, keycode, key_down)
+
+        self.quartz.CGEventCreateKeyboardEvent = failing_on_letter
+        with self.assertRaises(OSError):
+            self.backend.toggle_format(FORMAT_BOLD)
+        self.assertEqual(self.keystrokes()[-1], (KEYCODE_COMMAND, False))
+
+    def test_unknown_formatting_key_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            self.backend.toggle_format("format:sparkle")
 
     def test_backspace_does_not_set_a_unicode_string(self):
         self.backend.type_char("\b")

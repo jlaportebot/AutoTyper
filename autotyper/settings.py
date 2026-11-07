@@ -1,5 +1,6 @@
-"""Persisted user settings (speed, rhythm, start delay, typos, last text)."""
+"""Persisted user settings (speed, rhythm, start delay, typos, last text and its styles)."""
 
+import copy
 import json
 import logging
 import os
@@ -15,7 +16,9 @@ DEFAULTS = {
     "delay": 3,
     "typos": 2,
     "catch": 8,
+    "formatting": True,
     "text": "",
+    "styles": [],
 }
 
 
@@ -36,8 +39,8 @@ def settings_path():
 
 def _is_valid(value, default):
     """True if a saved value has the same kind as its default (whole numbers for numbers)."""
-    if isinstance(default, str):
-        return isinstance(value, str)
+    if isinstance(default, (bool, str, list)):
+        return isinstance(value, type(default))
     if isinstance(value, bool):
         return False
     if isinstance(value, float):
@@ -47,7 +50,7 @@ def _is_valid(value, default):
 
 def _merge_with_defaults(saved):
     """Known keys from ``saved`` where valid, defaults everywhere else."""
-    merged = dict(DEFAULTS)
+    merged = copy.deepcopy(DEFAULTS)
     for key, default in DEFAULTS.items():
         if key not in saved:
             continue
@@ -65,9 +68,9 @@ def load_settings():
         with open(settings_path(), encoding="utf-8") as handle:
             saved = json.load(handle)
     except (OSError, ValueError, TypeError):
-        return dict(DEFAULTS)
+        return copy.deepcopy(DEFAULTS)
     if not isinstance(saved, dict):
-        return dict(DEFAULTS)
+        return copy.deepcopy(DEFAULTS)
     return _merge_with_defaults(saved)
 
 

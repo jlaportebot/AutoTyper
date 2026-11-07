@@ -3,6 +3,7 @@
 import random
 import unittest
 
+from autotyper.keys import FORMAT_BOLD, FORMAT_ITALIC
 from autotyper.pacing import (
     CHARS_PER_WORD,
     base_delay,
@@ -11,6 +12,7 @@ from autotyper.pacing import (
     estimate_seconds,
     fmt_time,
     plan_delays,
+    plan_keys,
 )
 from autotyper.typos import BACKSPACE, final_text, typo_settings
 
@@ -139,6 +141,26 @@ class PacingWithTypos(unittest.TestCase):
         settings = typo_settings(5, 6)
         self.assertEqual(
             estimate_seconds(PROSE, 70, 0.3, settings), estimate_seconds(PROSE, 70, 0.3, settings)
+        )
+
+
+class PacingWithShortcuts(unittest.TestCase):
+    KEYS = ["a", FORMAT_BOLD, "b", "c", FORMAT_BOLD, FORMAT_ITALIC, " ", "d", FORMAT_ITALIC]
+
+    def test_plan_keeps_every_key_in_order(self):
+        plan = plan_keys(self.KEYS, 60, 0.3, random.Random(2))
+        self.assertEqual([key for key, _ in plan], self.KEYS)
+
+    def test_reaching_for_a_shortcut_takes_a_little_longer(self):
+        plan = plan_keys(self.KEYS, 60, 0.0, random.Random(2))
+        for key, delay in plan:
+            if key in (FORMAT_BOLD, FORMAT_ITALIC):
+                self.assertGreaterEqual(delay, base_delay(60))
+
+    def test_plain_text_keys_match_plan_delays(self):
+        self.assertEqual(
+            plan_keys(list("hello there."), 70, 0.3, random.Random(5)),
+            plan_delays("hello there.", 70, 0.3, random.Random(5)),
         )
 
 

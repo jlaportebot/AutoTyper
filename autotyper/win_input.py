@@ -7,7 +7,14 @@ any platform with a fake backend.
 import ctypes
 import time
 
-from .keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from .keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 
 VK_RETURN = 0x0D
 VK_TAB = 0x09
@@ -16,6 +23,7 @@ VK_ESCAPE = 0x1B
 VK_LBUTTON = 0x01
 VK_F9 = 0x78
 VK_MENU = 0x12
+VK_CONTROL = 0x11
 
 SYMBOLIC_TO_VK = {
     KEY_ESCAPE: VK_ESCAPE,
@@ -24,6 +32,8 @@ SYMBOLIC_TO_VK = {
 }
 
 CONTROL_VKS = {"\n": VK_RETURN, "\t": VK_TAB, "\b": VK_BACK}
+# Letter keys share their virtual-key code with the upper-case ASCII letter.
+FORMAT_VKS = {FORMAT_BOLD: ord("B"), FORMAT_ITALIC: ord("I"), FORMAT_UNDERLINE: ord("U")}
 
 GA_ROOT = 2
 SW_RESTORE = 9
@@ -143,6 +153,18 @@ class WindowsInput:
         self._send(
             *[self._key(scan=unit, flags=self.UNICODE) for unit in units],
             *[self._key(scan=unit, flags=self.UNICODE | self.KEYUP) for unit in units],
+        )
+
+    def toggle_format(self, key):
+        """Press Ctrl+B, Ctrl+I or Ctrl+U for a ``keys.FORMAT_*`` key."""
+        if key not in FORMAT_VKS:
+            raise ValueError(f"Unknown formatting key: {key!r}")
+        letter = FORMAT_VKS[key]
+        self._send(
+            self._key(vk=VK_CONTROL),
+            self._key(vk=letter),
+            self._key(vk=letter, flags=self.KEYUP),
+            self._key(vk=VK_CONTROL, flags=self.KEYUP),
         )
 
     def key_down(self, key):

@@ -128,6 +128,27 @@ class Settings(unittest.TestCase):
         save_settings({"wpm": 80.0})
         self.assertEqual(load_settings()["wpm"], 80)
 
+    def test_formatting_settings_have_defaults(self):
+        self.assertIs(DEFAULTS["formatting"], True)
+        self.assertEqual(DEFAULTS["styles"], [])
+
+    def test_formatting_settings_roundtrip(self):
+        save_settings({**DEFAULTS, "formatting": False, "styles": [[0, 3, 1]]})
+        loaded = load_settings()
+        self.assertIs(loaded["formatting"], False)
+        self.assertEqual(loaded["styles"], [[0, 3, 1]])
+
+    def test_formatting_values_of_the_wrong_type_fall_back_to_defaults(self):
+        save_settings({"formatting": 1, "styles": "bold"})
+        loaded = load_settings()
+        self.assertIs(loaded["formatting"], True)
+        self.assertEqual(loaded["styles"], [])
+
+    def test_loaded_defaults_are_copies(self):
+        load_settings()["styles"].append([0, 1, 1])
+        self.assertEqual(DEFAULTS["styles"], [])
+        self.assertEqual(load_settings()["styles"], [])
+
     def test_unknown_keys_are_dropped(self):
         save_settings({"wpm": 80, "surprise": "value"})
         self.assertNotIn("surprise", load_settings())
