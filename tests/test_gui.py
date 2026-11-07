@@ -4,8 +4,11 @@ These need a display. On Linux CI they run under ``xvfb-run``; when no
 display is available the whole module is skipped.
 """
 
+import gc
 import os
+import random
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -13,10 +16,13 @@ from autotyper import gui
 from autotyper.errors import InputBackendError
 from autotyper.gui import AutoTyperApp, font_candidates
 from autotyper.keys import KEY_ESCAPE, KEY_LEFT_BUTTON
+from autotyper.typos import BACKSPACE, final_text
 
 HAS_DISPLAY = bool(os.environ.get("DISPLAY")) or os.name == "nt"
 
 TARGET = 111
+WORKER_JOIN_TIMEOUT = 5.0
+SESSION_TIMEOUT = 20.0
 
 
 class FakeBackend:
@@ -132,11 +138,19 @@ class UserInterface(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.addCleanup(self.config_dir.cleanup)
         self.backend = FakeBackend()
-        self.app = AutoTyperApp(backend=self.backend)
+        self.app = AutoTyperApp(backend=self.backend, rng=random.Random(11))
         self.app.update()
 
     def tearDown(self):
         self.app.close()
+        for thread in threading.enumerate():
+            if thread is not threading.main_thread():
+                thread.join(timeout=WORKER_JOIN_TIMEOUT)
+        # Finalise this app's Tk objects here, on the main thread. Left to the
+        # garbage collector they can be freed on a later test's worker thread,
+        # where tkinter blocks for a second per object waiting for a main loop.
+        del self.app
+        gc.collect()
 
     def test_run_closes_the_input_backend_when_the_event_loop_ends(self):
         self.backend.close = mock.Mock()
@@ -242,6 +256,75 @@ class UserInterface(unittest.TestCase):
                 break
             typist.sleep(0.05)
         self.assertEqual(typist.result, "stopped")
+
+    def set_text(self, text):
+        self.app.text_box.delete("1.0", "end")
+        self.app.text_box.insert("1.0", text)
+        self.app.refresh()
+
+    def run_session(self, text):
+        """Start a session, skip the real-time waits and pump the UI until it ends."""
+        self.app._finish_pick((120, 240))
+        self.set_text(text)
+        self.app.slider_delay.set(1)
+        self.app.go()
+        typist = self.app.state["typist"]
+        typist.sleep = lambda _seconds: None
+        deadline = gui.time.monotonic() + SESSION_TIMEOUT
+        while self.app.message_label.cget("text") == "" and gui.time.monotonic() < deadline:
+            self.app.update()
+            gui.time.sleep(0.01)
+        return typist
+
+    def test_mistakes_section_has_typo_sliders(self):
+        self.assertTrue(self.app.slider_typos.winfo_exists())
+        self.assertTrue(self.app.slider_catch.winfo_exists())
+
+    def test_typo_sliders_start_from_the_saved_settings(self):
+        from autotyper.settings import DEFAULTS
+
+        self.assertEqual(self.app.slider_typos.get(), DEFAULTS["typos"])
+        self.assertEqual(self.app.slider_catch.get(), DEFAULTS["catch"])
+
+    def test_session_with_typos_fixes_every_mistake(self):
+        text = "The quick brown fox jumps over the lazy dog. " * 8
+        self.app.slider_typos.set(10)
+        self.app.slider_catch.set(6)
+        typist = self.run_session(text)
+        self.assertEqual(typist.result, "done")
+        self.assertIn(BACKSPACE, self.backend.out)
+        self.assertEqual(final_text(self.backend.out), text)
+        self.assertEqual(self.app.message_label.cget("text"), "Done.")
+
+    def test_session_without_typos_types_no_backspace(self):
+        text = "The quick brown fox jumps over the lazy dog. " * 8
+        self.app.slider_typos.set(0)
+        typist = self.run_session(text)
+        self.assertEqual(typist.result, "done")
+        self.assertEqual("".join(self.backend.out), text)
+
+    def test_eta_includes_the_time_spent_fixing_typos(self):
+        self.set_text("The quick brown fox jumps over the lazy dog. " * 40)
+        self.app.slider_typos.set(0)
+        self.app.refresh()
+        without = self.app.eta_label.cget("text")
+        self.app.slider_typos.set(10)
+        self.app.slider_catch.set(15)
+        self.app.refresh()
+        self.assertNotEqual(self.app.eta_label.cget("text"), without)
+
+    def test_typo_settings_are_persisted(self):
+        self.app.slider_typos.set(6)
+        self.app.slider_catch.set(4)
+        self.app.persist()
+        from autotyper.settings import load_settings
+
+        saved = load_settings()
+        self.assertEqual((saved["typos"], saved["catch"]), (6, 4))
+
+    def test_stopped_message_counts_characters_left_in_the_field(self):
+        self.app._apply_state("stopped", "12/40")
+        self.assertIn("12 of 40 characters", self.app.message_label.cget("text"))
 
     def test_settings_roundtrip_through_the_ui(self):
         self.app.text_box.delete("1.0", "end")

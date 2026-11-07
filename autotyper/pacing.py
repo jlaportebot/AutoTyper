@@ -6,6 +6,8 @@ seeded ``random.Random`` is supplied.
 
 import random
 
+from .typos import BACKSPACE, weave_typos
+
 MIN_WPM = 5
 MAX_WPM = 400
 MAX_VARIATION = 0.9
@@ -18,6 +20,11 @@ PAUSE_AFTER_PERIOD = (4, 8)
 PAUSE_AFTER_NEWLINE = (6, 12)
 COMMA_CHARS = (",", ";", ":")
 PERIOD_CHARS = (".", "!", "?")
+# Correcting a slip: a beat to notice it, quick repeated backspaces, then a
+# short hesitation before typing the right keys. Multiples of the base delay.
+PAUSE_TO_NOTICE = (2.5, 6)
+BACKSPACE_REPEAT = (0.45, 0.8)
+PAUSE_AFTER_FIX = (1, 2.5)
 
 
 def clamp_wpm(wpm):
@@ -35,12 +42,23 @@ def base_delay(wpm):
     return 60.0 / (clamp_wpm(wpm) * CHARS_PER_WORD)
 
 
-def _adjust_delay(previous, delay, base, rng):
+def _correction_delay(previous, char, delay, base, rng):
+    """Timing around a fix: notice the slip, erase quickly, then hesitate."""
+    if char != BACKSPACE:
+        return delay + base * rng.uniform(*PAUSE_AFTER_FIX)
+    if previous == BACKSPACE:
+        return base * rng.uniform(*BACKSPACE_REPEAT)
+    return delay + base * rng.uniform(*PAUSE_TO_NOTICE)
+
+
+def _adjust_delay(previous, char, delay, base, rng):
     """Apply the human rhythm rules that follow a character.
 
     A space stretches the next keystroke slightly; a comma, full stop or
-    newline adds a longer, randomised pause.
+    newline adds a longer, randomised pause; fixing a slip has its own timing.
     """
+    if BACKSPACE in (previous, char):
+        return _correction_delay(previous, char, delay, base, rng)
     if previous == " ":
         return delay * SPACE_MULTIPLIER
     if previous in COMMA_CHARS:
@@ -52,28 +70,32 @@ def _adjust_delay(previous, delay, base, rng):
     return delay
 
 
-def plan_delays(text, wpm=60, variation=0.25, rng=None):
+def plan_delays(text, wpm=60, variation=0.25, rng=None, typos=None):
     """Build the typing schedule.
 
     Returns a list of ``(character, delay_before_character_seconds)`` pairs.
     One "word" is five characters, matching the standard WPM convention.
+    With ``typos`` (a :class:`~autotyper.typos.TypoSettings`) the schedule also
+    contains slips and the backspaces that fix them.
     """
     rng = rng or random.Random()
+    if typos is not None:
+        text = weave_typos(text, typos, rng)
     base = base_delay(wpm)
     variation = clamp_variation(variation)
     plan = []
     previous = ""
     for char in text:
         delay = base * rng.uniform(1 - variation, 1 + variation)
-        delay = _adjust_delay(previous, delay, base, rng)
+        delay = _adjust_delay(previous, char, delay, base, rng)
         plan.append((char, max(MIN_CHAR_DELAY, delay)))
         previous = char
     return plan
 
 
-def estimate_seconds(text, wpm=60, variation=0.25):
+def estimate_seconds(text, wpm=60, variation=0.25, typos=None):
     """Estimate how long typing ``text`` takes, in seconds."""
-    plan = plan_delays(text, wpm, variation, random.Random(0))
+    plan = plan_delays(text, wpm, variation, random.Random(0), typos)
     return sum(delay for _, delay in plan)
 
 

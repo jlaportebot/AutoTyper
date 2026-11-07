@@ -1,12 +1,13 @@
 """The AutoTyper desktop UI (Tkinter).
 
-The window mirrors a three-step workflow: pick a target spot, enter the text,
-tune the speed, then press Go. While typing, the main window collapses into a
+The window mirrors the workflow: pick a target spot, enter the text, tune the
+speed and how many mistakes to make, then press Go. While typing, the main window collapses into a
 small floating control bar.
 """
 
 import logging
 import queue
+import random
 import sys
 import threading
 import time
@@ -18,13 +19,15 @@ from .input_factory import create_backend
 from .keys import KEY_ESCAPE, KEY_LEFT_BUTTON
 from .pacing import estimate_seconds, fmt_time, plan_delays
 from .settings import load_settings, save_settings
+from .typos import MAX_CATCH_KEYS, MAX_TYPO_PERCENT, typo_settings
 from .widgets import Button, Slider
 
 APP_NAME = "AutoTyper"
 WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 640
+WINDOW_HEIGHT = 690
 MIN_WIDTH = 500
-MIN_HEIGHT = 560
+MIN_HEIGHT = 620
+TEXT_BOX_LINES = 6
 MINI_WIDTH = 300
 MINI_HEIGHT = 128
 MINI_MARGIN = 24
@@ -92,11 +95,12 @@ def _shorten_title(title):
 class AutoTyperApp:
     """Owns the Tk widgets and wires them to the typing engine."""
 
-    def __init__(self, backend=None):
+    def __init__(self, backend=None, rng=None):
         import tkinter as tk
 
         self.tk = tk
         self.backend = backend or create_backend()
+        self.rng = rng or random.Random()
         self.config = load_settings()
         self.state = {"spot": None, "handle": None, "typist": None}
         self.events = queue.Queue()
@@ -193,6 +197,7 @@ class AutoTyperApp:
         self._build_target_section()
         self._build_text_section()
         self._build_speed_section()
+        self._build_mistakes_section()
         self._build_footer()
         self._build_mini_bar()
 
@@ -236,7 +241,7 @@ class AutoTyperApp:
             relief="flat",
             padx=12,
             pady=10,
-            height=8,
+            height=TEXT_BOX_LINES,
             highlightthickness=0,
         )
         self.text_box.pack(fill="both", expand=True)
@@ -263,6 +268,22 @@ class AutoTyperApp:
         )
         for slider in (self.slider_wpm, self.slider_variation, self.slider_delay):
             slider.pack(fill="x", pady=1)
+
+    def _build_mistakes_section(self):
+        """Section 04: how often to slip, and how late a slip may be noticed."""
+        _, body = self._section(self.main_view, "04", "Mistakes")
+        self.slider_typos = self._slider(
+            body, "Typos", 0, MAX_TYPO_PERCENT, self.config["typos"], "%", self.refresh
+        )
+        self.slider_catch = self._slider(
+            body, "Catch within", 0, MAX_CATCH_KEYS, self.config["catch"], " keys", self.refresh
+        )
+        for slider in (self.slider_typos, self.slider_catch):
+            slider.pack(fill="x", pady=1)
+
+    def typo_settings(self):
+        """The typo settings chosen with the Mistakes sliders."""
+        return typo_settings(self.slider_typos.get(), self.slider_catch.get())
 
     def _build_footer(self):
         """Footer: ETA readout plus the Go button and status line."""
@@ -339,7 +360,9 @@ class AutoTyperApp:
         if not text:
             self.eta_label.config(text="")
             return
-        seconds = estimate_seconds(text, self.slider_wpm.get(), self.slider_variation.get() / 100)
+        seconds = estimate_seconds(
+            text, self.slider_wpm.get(), self.slider_variation.get() / 100, self.typo_settings()
+        )
         self.eta_label.config(text=f"≈ {fmt_time(seconds)}")
 
     def persist(self):
@@ -349,6 +372,8 @@ class AutoTyperApp:
                 "wpm": self.slider_wpm.get(),
                 "variation": self.slider_variation.get(),
                 "delay": self.slider_delay.get(),
+                "typos": self.slider_typos.get(),
+                "catch": self.slider_catch.get(),
                 "text": self.current_text(),
             }
         )
@@ -440,7 +465,7 @@ class AutoTyperApp:
         wpm = self.slider_wpm.get()
         variation = self.slider_variation.get() / 100
         delay = self.slider_delay.get()
-        plan = plan_delays(text, wpm, variation)
+        plan = plan_delays(text, wpm, variation, self.rng, self.typo_settings())
         typist = Typist(
             self.backend,
             plan,

@@ -11,6 +11,7 @@ from .keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
 
 VK_RETURN = 0x0D
 VK_TAB = 0x09
+VK_BACK = 0x08
 VK_ESCAPE = 0x1B
 VK_LBUTTON = 0x01
 VK_F9 = 0x78
@@ -21,6 +22,8 @@ SYMBOLIC_TO_VK = {
     KEY_F9: VK_F9,
     KEY_LEFT_BUTTON: VK_LBUTTON,
 }
+
+CONTROL_VKS = {"\n": VK_RETURN, "\t": VK_TAB, "\b": VK_BACK}
 
 GA_ROOT = 2
 SW_RESTORE = 9
@@ -130,11 +133,9 @@ class WindowsInput:
         self._send(self._key(vk=vk), self._key(vk=vk, flags=self.KEYUP))
 
     def type_char(self, ch):
-        """Type one character, including Unicode and surrogate pairs."""
-        if ch == "\n":
-            return self.press_vk(VK_RETURN)
-        if ch == "\t":
-            return self.press_vk(VK_TAB)
+        """Type one character, including Unicode and surrogate pairs; ``"\\b"`` erases."""
+        if ch in CONTROL_VKS:
+            return self.press_vk(CONTROL_VKS[ch])
         if ch == "\r":
             return None
         data = ch.encode("utf-16-le")

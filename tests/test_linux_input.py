@@ -52,6 +52,7 @@ MAX_KEYCODE = 255
 KEYSYMS_PER_KEYCODE = 4
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 23
+KEYCODE_BACKSPACE = 22
 KEYCODE_ESCAPE = 9
 KEYCODE_F9 = 75
 KEYCODE_SHIFT = 50
@@ -163,6 +164,7 @@ class FakeDisplay:
         self.keysyms = {
             XK.XK_Return: KEYCODE_RETURN,
             XK.XK_Tab: KEYCODE_TAB,
+            XK.XK_BackSpace: KEYCODE_BACKSPACE,
             XK.XK_Escape: KEYCODE_ESCAPE,
             XK.XK_F9: KEYCODE_F9,
             XK.XK_Shift_L: KEYCODE_SHIFT,
@@ -440,6 +442,15 @@ class TypeChar(unittest.TestCase):
     def test_tab_presses_tab(self):
         self.backend.type_char("\t")
         self.assertEqual(self.xtest.events, self.press_release(KEYCODE_TAB))
+
+    def test_backspace_presses_backspace(self):
+        self.backend.type_char("\b")
+        self.assertEqual(self.xtest.events, self.press_release(KEYCODE_BACKSPACE))
+
+    def test_missing_backspace_key_raises_a_clear_error(self):
+        del self.display.keysyms[XK.XK_BackSpace]
+        with self.assertRaisesRegex(LinuxInputError, "BackSpace"):
+            self.backend.type_char("\b")
 
     def test_lowercase_letter_is_typed_without_shift(self):
         self.backend.type_char("a")
@@ -852,6 +863,11 @@ class XvfbIntegration(unittest.TestCase):
         self.backend.type_char("\n")
         codes = {d for _t, d, _s in self.key_events()}
         self.assertEqual(codes, {self.keycode(XK.XK_Return)})
+
+    def test_backspace_arrives_as_the_backspace_key(self):
+        self.backend.type_char("\b")
+        codes = {d for _t, d, _s in self.key_events()}
+        self.assertEqual(codes, {self.keycode(XK.XK_BackSpace)})
 
     def test_unicode_character_arrives_on_a_spare_keycode_and_keymap_is_restored(self):
         count = MAX_KEYCODE - MIN_KEYCODE + 1

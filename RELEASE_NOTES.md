@@ -1,29 +1,41 @@
-# AutoTyper v1.1.0
+# AutoTyper v1.2.0
 
-**AutoTyper now runs on Windows, macOS and Linux.** It types your text into any
-field one key at a time, at a pace that looks human.
+**AutoTyper now makes mistakes, like a person does, and fixes them.**
 
 ![AutoTyper icon](assets/autotyper-logo.png)
 
 ## What's new
 
-- **macOS app** — an `.app` in a DMG (ad-hoc signed, not notarized), with separate downloads
-  for Apple Silicon and Intel Macs.
-- **Linux app** — a single AppImage for x86_64 and ARM64.
-- Real keystrokes on every system: Win32 `SendInput` on Windows, X11 `XTEST` on
-  Linux, Quartz `CGEvent` on macOS.
-- Settings are saved in each system's usual folder.
-- Windows is unchanged.
+- **Typos and corrections.** Every so often AutoTyper hits the wrong key, keeps
+  typing for a few keys, notices, pauses, backspaces over everything since the
+  slip and types it correctly — so the finished text is still exactly yours.
+  - **Typos** (0–10%) sets roughly how many words in a hundred get a typo. The
+    gap between typos is random, so they never fall on a beat.
+  - **Catch within** (0–15 keys) sets how late a typo may be noticed. Each typo
+    picks its own distance: most are caught quickly, some run on.
+  - Realistic slips: a neighbouring QWERTY key (`hrllo`), a doubled letter
+    (`helllo`), two swapped letters (`teh`) or a skipped letter (`hllo`).
+  - Human timing: a beat to notice the slip, quick repeated backspaces, then a
+    short hesitation before the right keys.
+- Backspace is sent as a real key press on Windows, macOS and Linux.
+- The time estimate includes the time spent fixing typos.
+- The "Stopped · N of M characters typed" message counts what is really in the
+  field, not keystrokes.
+- A damaged `settings.json` value (for example a word where a number belongs)
+  falls back to its default instead of stopping the app from opening.
+
+Typos default to **2%** with **Catch within 8 keys**. Set **Typos** to 0% to
+type perfectly, as before.
 
 ## Download
 
 | System | File |
 | --- | --- |
 | Windows (64-bit) | `AutoTyper.exe` or `AutoTyper-windows-x64.zip` |
-| macOS, Apple Silicon | `AutoTyper-1.1.0-macos-arm64.dmg` |
-| macOS, Intel | `AutoTyper-1.1.0-macos-x64.dmg` |
-| Linux, x86_64 | `AutoTyper-1.1.0-linux-x86_64.AppImage` |
-| Linux, ARM64 | `AutoTyper-1.1.0-linux-aarch64.AppImage` |
+| macOS, Apple Silicon | `AutoTyper-1.2.0-macos-arm64.dmg` |
+| macOS, Intel | `AutoTyper-1.2.0-macos-x64.dmg` |
+| Linux, x86_64 | `AutoTyper-1.2.0-linux-x86_64.AppImage` |
+| Linux, ARM64 | `AutoTyper-1.2.0-linux-aarch64.AppImage` |
 
 No Python installation is needed for any of them.
 
@@ -43,9 +55,9 @@ No Python installation is needed for any of them.
 ## How to use it
 
 Press **Pick spot** and click the text box you want to write into, paste your
-text, set the speed, and press **Go**. `F9` pauses and resumes, `Esc` stops.
-If you click another window while typing, AutoTyper pauses so it never types
-into the wrong app.
+text, set the speed and how many mistakes to make, and press **Go**. `F9`
+pauses and resumes, `Esc` stops. If you click another window while typing,
+AutoTyper pauses so it never types into the wrong app.
 
 Full documentation: [README.md](https://github.com/jlaportebot/AutoTyper#readme)
 

@@ -11,6 +11,7 @@ from typing import Callable
 from autotyper.engine import Typist
 from autotyper.keys import KEY_ESCAPE, KEY_F9
 from autotyper.pacing import plan_delays
+from autotyper.typos import BACKSPACE, final_text, typo_settings
 
 TARGET = 111
 OTHER = 222
@@ -90,6 +91,53 @@ class EngineOutput(unittest.TestCase):
         typist, backend = make_typist("émoji 😀 中文")
         typist.run()
         self.assertEqual("".join(backend.out), "émoji 😀 中文")
+
+
+class EngineWithTypos(unittest.TestCase):
+    def make(self, text=TEXT * 4, seed=3):
+        backend = FakeBackend()
+        plan = plan_delays(text, 120, 0.3, random.Random(seed), typo_settings(10, 6))
+        typist = Typist(backend, plan, target=TARGET, sleep=backend.sleep, resume_countdown=1)
+        return typist, backend
+
+    def test_backspaces_are_sent_and_the_field_ends_up_correct(self):
+        for seed in range(20):
+            typist, backend = self.make(seed=seed)
+            self.assertEqual(typist.run(), "done")
+            self.assertIn(BACKSPACE, backend.out)
+            self.assertEqual(final_text(backend.out), TEXT * 4)
+
+    def test_finished_session_reports_text_characters_not_keystrokes(self):
+        typist, _backend = self.make()
+        infos = []
+        typist.on_state = lambda state, info="": infos.append((state, info))
+        typist.run()
+        total = len(TEXT * 4)
+        self.assertEqual(infos[-1], ("done", f"{total}/{total}"))
+
+    def test_stopped_session_reports_what_is_left_in_the_field(self):
+        typist, backend = self.make()
+        infos = []
+        typist.on_state = lambda state, info="": infos.append((state, info))
+        typist.on_progress = lambda index, _total: index == 150 and typist.stop()
+        self.assertEqual(typist.run(), "stopped")
+        visible = len(final_text(backend.out))
+        self.assertEqual(infos[-1], ("stopped", f"{visible}/{len(TEXT * 4)}"))
+
+    def test_abort_reports_zero_of_the_text_length(self):
+        typist, _backend = self.make()
+        infos = []
+        typist.on_state = lambda state, info="": infos.append((state, info))
+        typist.abort()
+        self.assertEqual(infos, [("stopped", f"0/{len(TEXT * 4)}")])
+
+    def test_pause_and_resume_in_the_middle_of_a_fix(self):
+        typist, backend = self.make()
+        first_backspace = [char for char, _ in typist.plan].index(BACKSPACE)
+        typist.on_progress = lambda index, _total: index == first_backspace and typist.pause()
+        backend.script = lambda fake: typist.paused and fake.ticks % 50 == 0 and typist.resume()
+        self.assertEqual(typist.run(), "done")
+        self.assertEqual(final_text(backend.out), TEXT * 4)
 
 
 class EngineControl(unittest.TestCase):

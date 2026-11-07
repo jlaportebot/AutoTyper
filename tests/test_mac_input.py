@@ -20,6 +20,7 @@ from autotyper.mac_input import (
 
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 48
+KEYCODE_BACKSPACE = 51
 KEYCODE_ESCAPE = 53
 KEYCODE_F9 = 101
 FRONT_WINDOW = 42
@@ -338,6 +339,14 @@ class TypeChar(unittest.TestCase):
     def test_tab_presses_tab(self):
         self.backend.type_char("\t")
         self.assertEqual(self.keystrokes(), [(KEYCODE_TAB, True), (KEYCODE_TAB, False)])
+
+    def test_backspace_presses_delete(self):
+        self.backend.type_char("\b")
+        self.assertEqual(self.keystrokes(), [(KEYCODE_BACKSPACE, True), (KEYCODE_BACKSPACE, False)])
+
+    def test_backspace_does_not_set_a_unicode_string(self):
+        self.backend.type_char("\b")
+        self.assertEqual({event["unicode"] for event in self.quartz.posted_events()}, {None})
 
     def test_regular_character_posts_key_down_then_key_up_with_keycode_zero(self):
         self.backend.type_char("a")
