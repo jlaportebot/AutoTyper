@@ -15,7 +15,8 @@ from unittest import mock
 from autotyper import gui
 from autotyper.errors import InputBackendError
 from autotyper.gui import AutoTyperApp, font_candidates
-from autotyper.keys import KEY_ESCAPE, KEY_LEFT_BUTTON
+from autotyper.keys import FORMAT_BOLD, FORMAT_ITALIC, FORMAT_UNDERLINE, KEY_ESCAPE, KEY_LEFT_BUTTON
+from autotyper.richtext import Run, Style
 from autotyper.typos import BACKSPACE, final_text
 
 HAS_DISPLAY = bool(os.environ.get("DISPLAY")) or os.name == "nt"
@@ -44,6 +45,9 @@ class FakeBackend:
 
     def foreground(self):
         return self.fg
+
+    def toggle_format(self, key):
+        self.out.append(key)
 
     def focus(self, handle):
         self.focus_calls += 1
@@ -325,6 +329,184 @@ class UserInterface(unittest.TestCase):
     def test_stopped_message_counts_characters_left_in_the_field(self):
         self.app._apply_state("stopped", "12/40")
         self.assertIn("12 of 40 characters", self.app.message_label.cget("text"))
+
+    FORMATTED_HTML = (
+        '<b style="font-weight:normal"><p><span style="font-weight:400">Plain </span>'
+        '<span style="font-weight:700">bold</span><span style="font-style:italic"> slanted</span>'
+        '</p><p><u>under</u><span style="white-space:pre-wrap">\tline</span></p></b>'
+    )
+    FORMATTED_TEXT = "Plain bold slanted\nunder\tline"
+
+    def paste_html(self, html):
+        with mock.patch.object(gui, "read_clipboard_html", return_value=html) as read:
+            result = self.app._on_paste()
+        self.app.update()
+        return result, read
+
+    def test_formatting_is_on_by_default(self):
+        self.assertTrue(self.app.formatting)
+        self.assertIn("on", self.app.format_button.cget("text").lower())
+
+    def test_toggling_formatting_updates_the_button(self):
+        self.app.toggle_formatting()
+        self.assertFalse(self.app.formatting)
+        self.assertIn("off", self.app.format_button.cget("text").lower())
+
+    def test_pasting_formatted_html_keeps_bold_italic_underline_and_spacing(self):
+        self.set_text("")
+        result, _read = self.paste_html(self.FORMATTED_HTML)
+        self.assertEqual(result, "break")
+        self.assertEqual(self.app.current_text(), self.FORMATTED_TEXT)
+        self.assertEqual(
+            self.app.editor_runs(),
+            [
+                Run("Plain ", Style.PLAIN),
+                Run("bold", Style.BOLD),
+                Run(" slanted", Style.ITALIC),
+                Run("\n", Style.PLAIN),
+                Run("under", Style.UNDERLINE),
+                Run("\tline", Style.PLAIN),
+            ],
+        )
+        self.assertIn("font", self.app.message_label.cget("text").lower())
+
+    def test_pasting_replaces_the_selection(self):
+        self.set_text("keep REPLACE keep")
+        self.app.text_box.tag_add("sel", "1.5", "1.12")
+        self.paste_html("<b>new</b>")
+        self.assertEqual(self.app.current_text(), "keep new keep")
+
+    def test_pasted_bold_and_italic_together_show_in_both(self):
+        self.set_text("")
+        self.paste_html("<b><i>both</i></b>")
+        self.assertIn("font-bold-italic", self.app.text_box.tag_names("1.1"))
+
+    def test_plain_clipboard_falls_back_to_the_normal_paste(self):
+        result, _read = self.paste_html(None)
+        self.assertIsNone(result)
+
+    def test_html_without_formatting_falls_back_to_the_normal_paste(self):
+        result, _read = self.paste_html("<p>just text</p>")
+        self.assertIsNone(result)
+
+    def test_paste_with_formatting_off_does_not_read_html(self):
+        self.app.toggle_formatting()
+        result, read = self.paste_html(self.FORMATTED_HTML)
+        self.assertIsNone(result)
+        read.assert_not_called()
+
+    def select(self, start, end):
+        self.app.text_box.tag_remove("sel", "1.0", "end")
+        self.app.text_box.tag_add("sel", start, end)
+
+    def test_shortcut_formats_the_selection_and_toggles_back(self):
+        self.set_text("hello world")
+        self.select("1.0", "1.5")
+        self.assertEqual(self.app.toggle_style(Style.BOLD), "break")
+        self.assertEqual(
+            self.app.editor_runs(), [Run("hello", Style.BOLD), Run(" world", Style.PLAIN)]
+        )
+        self.app.toggle_style(Style.BOLD)
+        self.assertEqual(self.app.editor_runs(), [Run("hello world", Style.PLAIN)])
+
+    def test_shortcut_on_a_partly_formatted_selection_formats_all_of_it(self):
+        self.set_text("hello world")
+        self.select("1.0", "1.5")
+        self.app.toggle_style(Style.ITALIC)
+        self.select("1.0", "1.11")
+        self.app.toggle_style(Style.ITALIC)
+        self.assertEqual(self.app.editor_runs(), [Run("hello world", Style.ITALIC)])
+
+    def test_shortcut_without_a_selection_changes_nothing(self):
+        self.set_text("hello")
+        self.app.text_box.tag_remove("sel", "1.0", "end")
+        self.app.toggle_style(Style.UNDERLINE)
+        self.assertEqual(self.app.editor_runs(), [Run("hello", Style.PLAIN)])
+
+    def test_control_b_is_bound_in_the_editor(self):
+        self.assertTrue(self.app.text_box.bind("<Control-b>"))
+        self.assertTrue(self.app.text_box.bind("<Control-i>"))
+        self.assertTrue(self.app.text_box.bind("<Control-u>"))
+
+    def test_session_types_formatting_shortcuts_around_styled_text(self):
+        self.set_text("")
+        self.paste_html(self.FORMATTED_HTML)
+        self.app.slider_typos.set(0)
+        typist = self.run_session_on_current_text()
+        self.assertEqual(typist.result, "done")
+        self.assertEqual(
+            self.backend.out,
+            [
+                *"Plain ",
+                FORMAT_BOLD,
+                *"bold",
+                FORMAT_BOLD,
+                FORMAT_ITALIC,
+                *" slanted",
+                FORMAT_ITALIC,
+                "\n",
+                FORMAT_UNDERLINE,
+                *"under",
+                FORMAT_UNDERLINE,
+                *"\tline",
+            ],
+        )
+
+    def test_session_with_formatting_and_typos_still_types_the_exact_text(self):
+        self.set_text("")
+        self.paste_html(self.FORMATTED_HTML * 6)
+        self.app.slider_typos.set(10)
+        self.app.slider_catch.set(6)
+        text = self.app.current_text()
+        typist = self.run_session_on_current_text()
+        self.assertEqual(typist.result, "done")
+        self.assertEqual(final_text(self.backend.out), text)
+        self.assertIn(FORMAT_BOLD, self.backend.out)
+
+    def test_formatting_off_types_styled_text_as_plain_text(self):
+        self.set_text("")
+        self.paste_html(self.FORMATTED_HTML)
+        self.app.toggle_formatting()
+        self.app.slider_typos.set(0)
+        typist = self.run_session_on_current_text()
+        self.assertEqual(typist.result, "done")
+        self.assertEqual("".join(self.backend.out), self.FORMATTED_TEXT)
+
+    def test_formatting_and_styles_are_saved_and_restored(self):
+        self.set_text("")
+        self.paste_html(self.FORMATTED_HTML)
+        runs = self.app.editor_runs()
+        self.app.toggle_formatting()
+        self.app.persist()
+        restored = AutoTyperApp(backend=FakeBackend(), rng=random.Random(1))
+        self.addCleanup(restored.close)
+        self.assertEqual(restored.editor_runs(), runs)
+        self.assertFalse(restored.formatting)
+
+    def test_opening_an_html_file_keeps_its_formatting(self):
+        path = os.path.join(self.config_dir.name, "page.html")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("<html><body><p>Hi <b>there</b></p></body></html>")
+        with mock.patch("tkinter.filedialog.askopenfilename", return_value=path):
+            self.app.open_file()
+        self.assertEqual(
+            self.app.editor_runs(), [Run("Hi ", Style.PLAIN), Run("there", Style.BOLD)]
+        )
+
+    def run_session_on_current_text(self):
+        """Like ``run_session`` but keeps the editor's current (formatted) contents."""
+        self.app._finish_pick((120, 240))
+        self.app.slider_delay.set(1)
+        self.app.go()
+        typist = self.app.state["typist"]
+        typist.sleep = lambda _seconds: None
+        deadline = gui.time.monotonic() + SESSION_TIMEOUT
+        while self.app.message_label.cget("text") in ("", gui.FORMAT_HINT):
+            if gui.time.monotonic() > deadline:
+                break
+            self.app.update()
+            gui.time.sleep(0.01)
+        return typist
 
     def test_settings_roundtrip_through_the_ui(self):
         self.app.text_box.delete("1.0", "end")

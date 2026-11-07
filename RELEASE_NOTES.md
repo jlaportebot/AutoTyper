@@ -1,41 +1,38 @@
-# AutoTyper v1.2.0
+# AutoTyper v1.3.0
 
-**AutoTyper now makes mistakes, like a person does, and fixes them.**
+**Paste formatted text and AutoTyper keeps the bold, italic, underline and spacing.**
 
 ![AutoTyper icon](assets/autotyper-logo.png)
 
 ## What's new
 
-- **Typos and corrections.** Every so often AutoTyper hits the wrong key, keeps
-  typing for a few keys, notices, pauses, backspaces over everything since the
-  slip and types it correctly — so the finished text is still exactly yours.
-  - **Typos** (0–10%) sets roughly how many words in a hundred get a typo. The
-    gap between typos is random, so they never fall on a beat.
-  - **Catch within** (0–15 keys) sets how late a typo may be noticed. Each typo
-    picks its own distance: most are caught quickly, some run on.
-  - Realistic slips: a neighbouring QWERTY key (`hrllo`), a doubled letter
-    (`helllo`), two swapped letters (`teh`) or a skipped letter (`hllo`).
-  - Human timing: a beat to notice the slip, quick repeated backspaces, then a
-    short hesitation before the right keys.
-- Backspace is sent as a real key press on Windows, macOS and Linux.
-- The time estimate includes the time spent fixing typos.
-- The "Stopped · N of M characters typed" message counts what is really in the
-  field, not keystrokes.
-- A damaged `settings.json` value (for example a word where a number belongs)
-  falls back to its default instead of stopping the app from opening.
+- **Formatting.** Copy text from Google Docs, Word, LibreOffice, Pages or a web
+  page and paste it into AutoTyper: **bold**, *italic* and underline are kept,
+  shown in the editor and typed with the target app's own shortcuts
+  (`Ctrl+B`/`I`/`U`, `⌘B`/`I`/`U` on macOS).
+  - Paragraphs, blank lines, tabs and spacing come through exactly.
+  - Lists are typed as `•` bullets and `1.` numbers.
+  - Select text in the editor and press `Ctrl+B`/`I`/`U` to format it yourself.
+  - **Formatting on / off** switches to plain text for plain-text boxes.
+  - Formatting is saved with your text between sessions.
+  - Typos still work with formatting, and a fix never erases back across a
+    style change.
+- **Open** also loads saved web pages (`.html`) with their formatting.
+- Fonts, sizes and colours are not typed: no shortcut sets them in every app,
+  so choose them in your document before pressing **Go**.
 
-Typos default to **2%** with **Catch within 8 keys**. Set **Typos** to 0% to
-type perfectly, as before.
+Everything from v1.2.0 (realistic typos fixed with real backspaces) is still
+here.
 
 ## Download
 
 | System | File |
 | --- | --- |
 | Windows (64-bit) | `AutoTyper.exe` or `AutoTyper-windows-x64.zip` |
-| macOS, Apple Silicon | `AutoTyper-1.2.0-macos-arm64.dmg` |
-| macOS, Intel | `AutoTyper-1.2.0-macos-x64.dmg` |
-| Linux, x86_64 | `AutoTyper-1.2.0-linux-x86_64.AppImage` |
-| Linux, ARM64 | `AutoTyper-1.2.0-linux-aarch64.AppImage` |
+| macOS, Apple Silicon | `AutoTyper-1.3.0-macos-arm64.dmg` |
+| macOS, Intel | `AutoTyper-1.3.0-macos-x64.dmg` |
+| Linux, x86_64 | `AutoTyper-1.3.0-linux-x86_64.AppImage` |
+| Linux, ARM64 | `AutoTyper-1.3.0-linux-aarch64.AppImage` |
 
 No Python installation is needed for any of them.
 
@@ -55,8 +52,8 @@ No Python installation is needed for any of them.
 ## How to use it
 
 Press **Pick spot** and click the text box you want to write into, paste your
-text, set the speed and how many mistakes to make, and press **Go**. `F9`
-pauses and resumes, `Esc` stops. If you click another window while typing,
+text (formatted or plain), set the speed and how many mistakes to make, and
+press **Go**. `F9` pauses and resumes, `Esc` stops. If you click another window while typing,
 AutoTyper pauses so it never types into the wrong app.
 
 Full documentation: [README.md](https://github.com/jlaportebot/AutoTyper#readme)

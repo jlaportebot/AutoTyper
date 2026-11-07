@@ -11,6 +11,8 @@ Pure functions only: deterministic when a seeded ``random.Random`` is supplied.
 import random
 from typing import NamedTuple
 
+from .keys import FORMAT_KEYS
+
 BACKSPACE = "\b"
 CHARS_PER_WORD = 5
 WORDS_PER_PERCENT = 100
@@ -102,9 +104,11 @@ def _is_plain(char):
 
 
 def final_text(keys):
-    """The text left in a field after typing ``keys`` (backspaces erase)."""
+    """The text left in a field after typing ``keys`` (backspaces erase, shortcuts add nothing)."""
     field = []
     for key in keys:
+        if key in FORMAT_KEYS:
+            continue
         if key != BACKSPACE:
             field.append(key)
         elif field:
@@ -157,14 +161,17 @@ def _next_gap(mean_gap, rng):
     return int(rng.expovariate(1.0 / mean_gap))
 
 
-def weave_typos(text, settings, rng=None):
-    """Return the keys to press for ``text`` with slips and their fixes woven in."""
+def weave_typos(text, settings, rng=None, first_slip=0):
+    """Return the keys to press for ``text`` with slips and their fixes woven in.
+
+    No slip lands before index ``first_slip``, so a fix never erases those characters.
+    """
     if not settings.enabled:
         return text
     rng = rng or random.Random()
     mean_gap = WORDS_PER_PERCENT * CHARS_PER_WORD / settings.percent
     keys = []
-    next_slip = _next_gap(mean_gap, rng)
+    next_slip = max(first_slip, _next_gap(mean_gap, rng))
     for index, char in enumerate(text):
         if index >= next_slip and _is_slippable(char):
             fix, span = _mistake(text, index, settings.catch_within, rng)

@@ -4,6 +4,7 @@ import random
 import re
 import unittest
 
+from autotyper.keys import FORMAT_BOLD
 from autotyper.typos import (
     BACKSPACE,
     MAX_CATCH_KEYS,
@@ -213,6 +214,15 @@ class WeaveTypos(unittest.TestCase):
     def test_text_without_ascii_letters_gets_no_mistakes(self):
         text = "1234 5678, 90! — 中文 😀 éèê\n" * 50
         self.assertEqual(weave(text, percent=MAX_TYPO_PERCENT), text)
+
+    def test_first_slip_protects_the_start_of_the_text(self):
+        for seed in range(60):
+            keys = weave_typos("ab" * 3, typo_settings(MAX_TYPO_PERCENT, 4), random.Random(seed), 1)
+            self.assertEqual(keys[0], "a", seed)
+            self.assertEqual(final_text(keys), "ab" * 3)
+
+    def test_shortcut_keys_add_nothing_to_the_field(self):
+        self.assertEqual(final_text(["a", FORMAT_BOLD, "b", FORMAT_BOLD]), "ab")
 
     def test_wrong_keys_are_always_letters(self):
         for seed in range(20):

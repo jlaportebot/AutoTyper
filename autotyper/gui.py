@@ -1,8 +1,8 @@
 """The AutoTyper desktop UI (Tkinter).
 
-The window mirrors the workflow: pick a target spot, enter the text, tune the
-speed and how many mistakes to make, then press Go. While typing, the main window collapses into a
-small floating control bar.
+The window mirrors the workflow: pick a target spot, enter (or paste formatted)
+text, tune the speed and how many mistakes to make, then press Go. While typing,
+the main window collapses into a small floating control bar.
 """
 
 import logging
@@ -12,14 +12,24 @@ import sys
 import threading
 import time
 
+from .clipboard import read_clipboard_html
+from .editor import StyledText
 from .engine import Typist
 from .errors import InputBackendError
 from .gui_colors import COLORS
 from .input_factory import create_backend
 from .keys import KEY_ESCAPE, KEY_LEFT_BUTTON
-from .pacing import estimate_seconds, fmt_time, plan_delays
+from .pacing import estimate_seconds, fmt_time, plan_keys
+from .richtext import (
+    Style,
+    format_keys,
+    has_formatting,
+    runs_from_html,
+    runs_from_spans,
+    spans_from_runs,
+)
 from .settings import load_settings, save_settings
-from .typos import MAX_CATCH_KEYS, MAX_TYPO_PERCENT, typo_settings
+from .typos import MAX_CATCH_KEYS, MAX_TYPO_PERCENT, typo_settings, weave_typos
 from .widgets import Button, Slider
 
 APP_NAME = "AutoTyper"
@@ -37,7 +47,15 @@ PICK_TIMEOUT_SECONDS = 30
 PICK_ARM_DELAY = 0.4
 CLICK_SETTLE_DELAY = 0.3
 COUNTDOWN_TICKS = 10
-TEXT_FILE_TYPES = [("Text", "*.txt *.md"), ("All files", "*.*")]
+EDITOR_FONT_SIZE = 11
+TEXT_FILE_TYPES = [
+    ("Text or web page", "*.txt *.md *.html *.htm"),
+    ("All files", "*.*"),
+]
+HTML_SUFFIXES = (".html", ".htm")
+FORMAT_HINT = "Formatting kept. Set the font and size in your document before Go."
+SIDE_PADDING = 22
+STYLE_SHORTCUT_LETTERS = (("b", Style.BOLD), ("i", Style.ITALIC), ("u", Style.UNDERLINE))
 DECODE_ERRORS = "replace"
 FONT_CANDIDATES = {
     "win32": (
@@ -102,6 +120,7 @@ class AutoTyperApp:
         self.backend = backend or create_backend()
         self.rng = rng or random.Random()
         self.config = load_settings()
+        self.formatting = self.config["formatting"]
         self.state = {"spot": None, "handle": None, "typist": None}
         self.events = queue.Queue()
         self.poll_job = None
@@ -233,7 +252,7 @@ class AutoTyperApp:
             frame,
             wrap="word",
             undo=True,
-            font=(self.ui, 11),
+            font=(self.ui, EDITOR_FONT_SIZE),
             bg=COLORS["field"],
             fg=COLORS["text"],
             insertbackground=COLORS["accent"],
@@ -245,14 +264,17 @@ class AutoTyperApp:
             highlightthickness=0,
         )
         self.text_box.pack(fill="both", expand=True)
-        self.text_box.insert("1.0", self.config["text"])
+        self.editor = StyledText(self.text_box, self.ui, EDITOR_FONT_SIZE)
+        self.editor.set_runs(runs_from_spans(self.config["text"], self.config["styles"]))
 
         tools = tk.Frame(body, bg=COLORS["bg"])
         tools.pack(fill="x", pady=(6, 0))
         self.count_label = tk.Label(tools, font=self.font_label, fg=COLORS["dim"], bg=COLORS["bg"])
         self.count_label.pack(side="left")
         self._button(tools, "Clear", self.clear_text).pack(side="right")
-        self._button(tools, "Open .txt", self.open_file).pack(side="right", padx=(0, 6))
+        self._button(tools, "Open", self.open_file).pack(side="right", padx=(0, 6))
+        self.format_button = self._button(tools, self._format_label(), self.toggle_formatting)
+        self.format_button.pack(side="right", padx=(0, 6))
 
     def _build_speed_section(self):
         """Section 03: speed, rhythm and start delay."""
@@ -295,7 +317,12 @@ class AutoTyperApp:
         self.go_button = self._button(footer, "Go  →", self.go, kind="primary")
         self.go_button.pack(side="right")
         self.message_label = tk.Label(
-            self.main_view, text="", font=self.font_ui, fg=COLORS["warn"], bg=COLORS["bg"]
+            self.main_view,
+            text="",
+            font=self.font_ui,
+            fg=COLORS["warn"],
+            bg=COLORS["bg"],
+            wraplength=MIN_WIDTH - 2 * SIDE_PADDING,
         )
         self.message_label.pack(fill="x", padx=22, pady=(0, 10))
 
@@ -333,6 +360,13 @@ class AutoTyperApp:
     def _wire_events(self):
         """Bind the events that need to fire after the widgets exist."""
         self.text_box.bind("<<Modified>>", self._on_text_modified)
+        self.text_box.bind("<<Paste>>", self._on_paste)
+        modifiers = ("Control", "Command") if sys.platform == "darwin" else ("Control",)
+        for modifier in modifiers:
+            for letter, style in STYLE_SHORTCUT_LETTERS:
+                handler = lambda _event, style=style: self.toggle_style(style)  # noqa: E731
+                self.text_box.bind(f"<{modifier}-{letter}>", handler)
+                self.text_box.bind(f"<{modifier}-{letter.upper()}>", handler)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.poll_job = self.root.after(EVENT_POLL_MS, self._drain_events)
 
@@ -365,8 +399,12 @@ class AutoTyperApp:
         )
         self.eta_label.config(text=f"≈ {fmt_time(seconds)}")
 
+    def editor_runs(self):
+        """The editor's text as styled runs."""
+        return self.editor.runs()
+
     def persist(self):
-        """Save the current settings and text to disk."""
+        """Save the current settings, text and its styles to disk."""
         save_settings(
             {
                 "wpm": self.slider_wpm.get(),
@@ -374,9 +412,40 @@ class AutoTyperApp:
                 "delay": self.slider_delay.get(),
                 "typos": self.slider_typos.get(),
                 "catch": self.slider_catch.get(),
+                "formatting": self.formatting,
                 "text": self.current_text(),
+                "styles": spans_from_runs(self.editor_runs()),
             }
         )
+
+    # ------------------------------------------------------------------
+    # formatting
+    # ------------------------------------------------------------------
+    def _format_label(self):
+        """Text of the formatting toggle button."""
+        return "Formatting on" if self.formatting else "Formatting off"
+
+    def toggle_formatting(self):
+        """Switch between typing bold/italic/underline and typing plain text."""
+        self.formatting = not self.formatting
+        self.format_button.set(self._format_label())
+
+    def toggle_style(self, style):
+        """Bold, italicise or underline the selected text (Ctrl/Command+B, I, U)."""
+        self.editor.toggle_style(style)
+        return "break"
+
+    def _on_paste(self, _event=None):
+        """Paste formatted text with its styles; anything else pastes as usual."""
+        if not self.formatting:
+            return None
+        runs = runs_from_html(read_clipboard_html(self.root) or "")
+        if not has_formatting(runs):
+            return None
+        self.editor.replace_selection(runs)
+        self.refresh()
+        self.say(FORMAT_HINT, COLORS["accent"])
+        return "break"
 
     def say(self, message, color=None):
         """Show a status message under the main view."""
@@ -388,7 +457,7 @@ class AutoTyperApp:
         self.refresh()
 
     def open_file(self):
-        """Load a .txt/.md file into the editor."""
+        """Load a text file, or a web page with its formatting, into the editor."""
         from tkinter import filedialog
 
         path = filedialog.askopenfilename(filetypes=TEXT_FILE_TYPES)
@@ -396,8 +465,11 @@ class AutoTyperApp:
             return
         with open(path, encoding="utf-8", errors=DECODE_ERRORS) as handle:
             content = handle.read().replace("\r\n", "\n")
-        self.text_box.delete("1.0", "end")
-        self.text_box.insert("1.0", content)
+        if path.lower().endswith(HTML_SUFFIXES):
+            self.editor.set_runs(runs_from_html(content))
+        else:
+            self.text_box.delete("1.0", "end")
+            self.text_box.insert("1.0", content)
         self.refresh()
 
     # ------------------------------------------------------------------
@@ -465,7 +537,7 @@ class AutoTyperApp:
         wpm = self.slider_wpm.get()
         variation = self.slider_variation.get() / 100
         delay = self.slider_delay.get()
-        plan = plan_delays(text, wpm, variation, self.rng, self.typo_settings())
+        plan = plan_keys(self._keys_to_type(text), wpm, variation, self.rng)
         typist = Typist(
             self.backend,
             plan,
@@ -478,6 +550,13 @@ class AutoTyperApp:
         self.show_mini()
         self.ui_progress(0, len(plan))
         threading.Thread(target=self._worker, args=(typist, delay), daemon=True).start()
+
+    def _keys_to_type(self, text):
+        """Every key of the session: text, typos and fixes, and style shortcuts."""
+        runs = self.editor_runs()
+        if self.formatting and has_formatting(runs):
+            return format_keys(runs, self.typo_settings(), self.rng)
+        return weave_typos(text, self.typo_settings(), self.rng)
 
     def _worker(self, typist, delay):
         """Background thread: count down, click the spot, then type."""

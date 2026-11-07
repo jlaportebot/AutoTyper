@@ -6,6 +6,7 @@ seeded ``random.Random`` is supplied.
 
 import random
 
+from .keys import FORMAT_KEYS
 from .typos import BACKSPACE, weave_typos
 
 MIN_WPM = 5
@@ -25,6 +26,8 @@ PERIOD_CHARS = (".", "!", "?")
 PAUSE_TO_NOTICE = (2.5, 6)
 BACKSPACE_REPEAT = (0.45, 0.8)
 PAUSE_AFTER_FIX = (1, 2.5)
+# Reaching for Ctrl/Command plus a letter takes a little longer than one key.
+PAUSE_FOR_SHORTCUT = (1, 2)
 
 
 def clamp_wpm(wpm):
@@ -57,6 +60,8 @@ def _adjust_delay(previous, char, delay, base, rng):
     A space stretches the next keystroke slightly; a comma, full stop or
     newline adds a longer, randomised pause; fixing a slip has its own timing.
     """
+    if char in FORMAT_KEYS:
+        return base * rng.uniform(*PAUSE_FOR_SHORTCUT)
     if BACKSPACE in (previous, char):
         return _correction_delay(previous, char, delay, base, rng)
     if previous == " ":
@@ -81,11 +86,21 @@ def plan_delays(text, wpm=60, variation=0.25, rng=None, typos=None):
     rng = rng or random.Random()
     if typos is not None:
         text = weave_typos(text, typos, rng)
+    return plan_keys(text, wpm, variation, rng)
+
+
+def plan_keys(keys, wpm=60, variation=0.25, rng=None):
+    """Build the typing schedule for an exact sequence of keys.
+
+    ``keys`` holds characters, ``"\\b"`` backspaces and formatting shortcuts
+    (``keys.FORMAT_KEYS``); returns ``(key, delay_before_key_seconds)`` pairs.
+    """
+    rng = rng or random.Random()
     base = base_delay(wpm)
     variation = clamp_variation(variation)
     plan = []
     previous = ""
-    for char in text:
+    for char in keys:
         delay = base * rng.uniform(1 - variation, 1 + variation)
         delay = _adjust_delay(previous, char, delay, base, rng)
         plan.append((char, max(MIN_CHAR_DELAY, delay)))

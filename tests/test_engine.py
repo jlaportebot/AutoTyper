@@ -9,7 +9,7 @@ import unittest
 from typing import Callable
 
 from autotyper.engine import Typist
-from autotyper.keys import KEY_ESCAPE, KEY_F9
+from autotyper.keys import FORMAT_BOLD, FORMAT_UNDERLINE, KEY_ESCAPE, KEY_F9
 from autotyper.pacing import plan_delays
 from autotyper.typos import BACKSPACE, final_text, typo_settings
 
@@ -40,6 +40,10 @@ class FakeBackend:
 
     def foreground(self):
         return self.fg
+
+    def toggle_format(self, key):
+        assert self.fg == TARGET, "toggled formatting in the wrong window!"
+        self.out.append(key)
 
     def focus(self, handle):
         self.focus_calls += 1
@@ -138,6 +142,29 @@ class EngineWithTypos(unittest.TestCase):
         backend.script = lambda fake: typist.paused and fake.ticks % 50 == 0 and typist.resume()
         self.assertEqual(typist.run(), "done")
         self.assertEqual(final_text(backend.out), TEXT * 4)
+
+
+class EngineWithFormatting(unittest.TestCase):
+    def test_shortcuts_go_to_toggle_format_and_text_to_type_char(self):
+        keys = ["a", FORMAT_BOLD, "b", FORMAT_BOLD, FORMAT_UNDERLINE, "c", FORMAT_UNDERLINE]
+        backend = FakeBackend()
+        typed = []
+        backend.type_char = lambda char: typed.append(char)
+        plan = [(key, 0.01) for key in keys]
+        typist = Typist(backend, plan, target=TARGET, sleep=backend.sleep)
+        self.assertEqual(typist.run(), "done")
+        shortcuts = [FORMAT_BOLD, FORMAT_BOLD, FORMAT_UNDERLINE, FORMAT_UNDERLINE]
+        self.assertEqual(backend.out, shortcuts)
+        self.assertEqual(typed, ["a", "b", "c"])
+
+    def test_shortcuts_do_not_count_as_typed_characters(self):
+        plan = [(key, 0.01) for key in ["a", FORMAT_BOLD, "b", FORMAT_BOLD]]
+        backend = FakeBackend()
+        infos = []
+        typist = Typist(backend, plan, target=TARGET, sleep=backend.sleep)
+        typist.on_state = lambda state, info="": infos.append((state, info))
+        typist.run()
+        self.assertEqual(infos[-1], ("done", "2/2"))
 
 
 class EngineControl(unittest.TestCase):

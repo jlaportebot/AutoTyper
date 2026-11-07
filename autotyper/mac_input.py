@@ -10,13 +10,25 @@ import logging
 import time
 
 from .errors import InputBackendError
-from .keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from .keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 
 logger = logging.getLogger(__name__)
 
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 48
 KEYCODE_BACKSPACE = 51
+KEYCODE_COMMAND = 55
+KEYCODE_B = 11
+KEYCODE_I = 34
+KEYCODE_U = 32
+NO_FLAGS = 0
 KEYCODE_SPACE = 49
 KEYCODE_ESCAPE = 53
 KEYCODE_F9 = 101
@@ -27,6 +39,7 @@ CLICK_HOLD_DELAY = 0.03
 NORMAL_WINDOW_LAYER = 0
 
 KEY_KEYCODES = {KEY_ESCAPE: KEYCODE_ESCAPE, KEY_F9: KEYCODE_F9}
+FORMAT_KEYCODES = {FORMAT_BOLD: KEYCODE_B, FORMAT_ITALIC: KEYCODE_I, FORMAT_UNDERLINE: KEYCODE_U}
 CONTROL_KEYCODES = {"\n": KEYCODE_RETURN, "\t": KEYCODE_TAB, "\b": KEYCODE_BACKSPACE}
 
 WINDOW_NUMBER = "kCGWindowNumber"
@@ -169,6 +182,26 @@ class MacInput:
             self._tap(CONTROL_KEYCODES[ch])
             return
         self._tap(UNICODE_KEYCODE, ch)
+
+    def _post_command_key(self, keycode, key_down, flags):
+        """Post one key event with the given modifier flags."""
+        event = self.quartz.CGEventCreateKeyboardEvent(None, keycode, key_down)
+        if event is not None:
+            self.quartz.CGEventSetFlags(event, flags)
+        self._post(event, "keyboard")
+
+    def toggle_format(self, key):
+        """Press Command+B, Command+I or Command+U for a ``keys.FORMAT_*`` key."""
+        if key not in FORMAT_KEYCODES:
+            raise ValueError(f"Unknown formatting key: {key!r}")
+        letter = FORMAT_KEYCODES[key]
+        command = self.quartz.kCGEventFlagMaskCommand
+        self._post_command_key(KEYCODE_COMMAND, True, command)
+        try:
+            self._post_command_key(letter, True, command)
+            self._post_command_key(letter, False, command)
+        finally:
+            self._post_command_key(KEYCODE_COMMAND, False, NO_FLAGS)
 
     def key_down(self, key):
         """True while the named key (see ``keys.py``) is physically held."""

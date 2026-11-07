@@ -10,7 +10,9 @@ spot on screen you want to write into, paste the text you want written, choose
 how fast it should be typed, and press **Go**. AutoTyper clicks the spot,
 focuses it and types the text character by character with natural rhythm — variable speed, a pause at
 commas, a longer pause at full stops, a beat between sentences — and, like a real person, the odd
-typo that it notices a few keys later, backspaces over and fixes.
+typo that it notices a few keys later, backspaces over and fixes. Paste formatted text from Google
+Docs, Word or a web page and it keeps the **bold**, *italic* and underline, and the paragraphs,
+blank lines and tabs too.
 
 It is meant for writing into anything that monitors how you type: timed
 writing platforms, prose trainers, typing tutors, form fillers you have to
@@ -31,7 +33,7 @@ writing platforms, prose trainers, typing tutors, form fillers you have to
 Grab the file for your system from the
 [Releases page](https://github.com/jlaportebot/AutoTyper/releases/latest). Each
 one is self-contained — no Python installation required. In the names below,
-`<version>` is the release number, for example `1.2.0`.
+`<version>` is the release number, for example `1.3.0`.
 
 | System | File |
 | --- | --- |
@@ -116,9 +118,32 @@ Press `Esc` while picking to cancel.
 
 ### 02 · Text
 
-Type or paste your text, or press **Open .txt** to load a `.txt`/`.md` file.
-The counter shows characters, words and a live **ETA** for the current speed
-settings.
+Type or paste your text, or press **Open** to load a `.txt`/`.md` file or a
+saved web page (`.html`, formatting included). The counter shows characters,
+words and a live **ETA** for the current speed settings.
+
+#### Formatting
+
+Copy text from Google Docs, Word, LibreOffice, Pages or a web page and paste it
+into AutoTyper: **bold**, *italic* and underline are kept and shown in the
+editor, together with the paragraphs, blank lines, tabs and spacing. While
+typing, AutoTyper switches each style on and off with the target app's own
+shortcuts — `Ctrl+B`, `Ctrl+I`, `Ctrl+U` (`⌘B`, `⌘I`, `⌘U` on macOS) — which
+Google Docs, Word, LibreOffice, Pages and most rich-text editors understand.
+
+- Select text in the editor and press `Ctrl+B`/`Ctrl+I`/`Ctrl+U` (or `⌘` on
+  macOS) to format it yourself.
+- **Formatting on / off** switches between typing the styles and typing plain
+  text. Turn it off for plain-text boxes, where those shortcuts can mean
+  something else (in Firefox, `Ctrl+B` opens the bookmarks sidebar).
+- **Fonts, sizes and colours are not typed.** No shortcut sets an exact font or
+  size in every app, so typed text takes the font and size at the cursor —
+  choose them in your document before pressing **Go**.
+- Start in plain (not bold) text. Each shortcut flips a style, so starting
+  inside bold text would swap bold and plain.
+- Lists come through as `•` bullets and `1.` numbers typed as text.
+- Typos never fall on the first letter after a style change, so fixing one
+  never erases back across it.
 
 ### 03 · Speed & timing
 
@@ -168,7 +193,7 @@ pauses itself automatically so it can never type into the wrong app. When you
 resume, it counts down two seconds and brings the target window back to the
 front by itself.
 
-Your text, speed, rhythm, delay and mistake settings are remembered between sessions
+Your text (with its formatting), speed, rhythm, delay, mistake and formatting settings are remembered between sessions
 in `settings.json` inside the AutoTyper settings folder:
 
 | System | Path |
@@ -219,6 +244,8 @@ and corrections as real `Backspace` key presses.
 AutoTyper/
 ├── autotyper/
 │   ├── __main__.py     # entry point and --smoke-test health check
+│   ├── clipboard.py    # reads formatted (HTML) text from each system's clipboard
+│   ├── editor.py       # bold/italic/underline tags inside the Tk editor
 │   ├── engine.py       # typing engine: pause, resume, stop, focus guard
 │   ├── errors.py       # InputBackendError shared by all backends
 │   ├── gui.py          # Tkinter desktop UI
@@ -228,6 +255,7 @@ AutoTyper/
 │   ├── linux_input.py  # Linux X11 / XTEST layer
 │   ├── mac_input.py    # macOS Quartz CGEvent layer
 │   ├── pacing.py       # human-like timing maths (pure functions)
+│   ├── richtext.py     # pasted HTML → styled runs → keys and shortcuts (pure)
 │   ├── settings.py     # persisted preferences (per-OS config folder)
 │   ├── typos.py        # realistic typos and their corrections (pure functions)
 │   ├── widgets.py      # flat button + slider widgets
@@ -298,7 +326,7 @@ Every build can check itself without typing anything:
 
 ### Release
 
-Pushing a tag such as `v1.2.0` runs `release.yml`: it builds, smoke-tests and
+Pushing a tag such as `v1.3.0` runs `release.yml`: it builds, smoke-tests and
 publishes the Windows, macOS and Linux files in one release.
 
 ---
@@ -321,6 +349,14 @@ fix is never typed. Let a session finish, or set **Typos** to 0%.
 autocorrect words (`teh` → `the`) can change the text before AutoTyper fixes
 its own typo, so the backspaces erase the wrong number of characters. Turn off
 autocorrect in the target app, or set **Typos** to 0%.
+
+**Bold (or italic) is the wrong way round.** The cursor started inside bold
+text, so the first `Ctrl+B` switched bold off instead of on. Click into plain
+text before pressing **Go**.
+
+**Formatting shortcuts do something else in my app.** Some apps use `Ctrl+B`,
+`Ctrl+I` or `Ctrl+U` for other things, or are plain-text only. Press
+**Formatting on** to switch it off and type plain text.
 
 **Text is typed into the wrong place.** AutoTyper pauses when you switch
 windows, but if you move the target window after picking, the stored pixel

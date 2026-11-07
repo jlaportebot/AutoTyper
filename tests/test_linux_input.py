@@ -24,7 +24,14 @@ from Xlib.ext import xtest
 
 from autotyper import linux_input
 from autotyper.errors import InputBackendError
-from autotyper.keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from autotyper.keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 from autotyper.linux_input import (
     KeyStroke,
     LinuxInput,
@@ -53,6 +60,10 @@ KEYSYMS_PER_KEYCODE = 4
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 23
 KEYCODE_BACKSPACE = 22
+KEYCODE_CONTROL = 37
+KEYCODE_B = 56
+KEYCODE_I = 31
+KEYCODE_U = 30
 KEYCODE_ESCAPE = 9
 KEYCODE_F9 = 75
 KEYCODE_SHIFT = 50
@@ -165,6 +176,10 @@ class FakeDisplay:
             XK.XK_Return: KEYCODE_RETURN,
             XK.XK_Tab: KEYCODE_TAB,
             XK.XK_BackSpace: KEYCODE_BACKSPACE,
+            XK.XK_Control_L: KEYCODE_CONTROL,
+            XK.XK_b: KEYCODE_B,
+            XK.XK_i: KEYCODE_I,
+            XK.XK_u: KEYCODE_U,
             XK.XK_Escape: KEYCODE_ESCAPE,
             XK.XK_F9: KEYCODE_F9,
             XK.XK_Shift_L: KEYCODE_SHIFT,
@@ -446,6 +461,46 @@ class TypeChar(unittest.TestCase):
     def test_backspace_presses_backspace(self):
         self.backend.type_char("\b")
         self.assertEqual(self.xtest.events, self.press_release(KEYCODE_BACKSPACE))
+
+    def test_formatting_shortcuts_hold_control_around_the_letter(self):
+        for key, letter in (
+            (FORMAT_BOLD, KEYCODE_B),
+            (FORMAT_ITALIC, KEYCODE_I),
+            (FORMAT_UNDERLINE, KEYCODE_U),
+        ):
+            self.xtest.events.clear()
+            self.backend.toggle_format(key)
+            self.assertEqual(
+                self.xtest.events,
+                [
+                    (X.KeyPress, KEYCODE_CONTROL),
+                    (X.KeyPress, letter),
+                    (X.KeyRelease, letter),
+                    (X.KeyRelease, KEYCODE_CONTROL),
+                ],
+            )
+
+    def test_control_is_released_even_if_the_letter_fails(self):
+        calls = []
+
+        def failing_on_letter(_display, event_type, detail=0, **_kwargs):
+            calls.append((event_type, detail))
+            if detail == KEYCODE_B:
+                raise OSError("x server went away")
+
+        self.xtest.fake_input = failing_on_letter
+        with self.assertRaises(OSError):
+            self.backend.toggle_format(FORMAT_BOLD)
+        self.assertEqual(calls[-1], (X.KeyRelease, KEYCODE_CONTROL))
+
+    def test_missing_control_key_raises_a_clear_error(self):
+        del self.display.keysyms[XK.XK_Control_L]
+        with self.assertRaisesRegex(LinuxInputError, "Control"):
+            self.backend.toggle_format(FORMAT_BOLD)
+
+    def test_unknown_formatting_key_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            self.backend.toggle_format("format:sparkle")
 
     def test_missing_backspace_key_raises_a_clear_error(self):
         del self.display.keysyms[XK.XK_BackSpace]
@@ -863,6 +918,19 @@ class XvfbIntegration(unittest.TestCase):
         self.backend.type_char("\n")
         codes = {d for _t, d, _s in self.key_events()}
         self.assertEqual(codes, {self.keycode(XK.XK_Return)})
+
+    def test_bold_shortcut_arrives_as_b_with_control_held(self):
+        self.backend.type_char("x")
+        self.drain_events()
+        self.backend.toggle_format(FORMAT_BOLD)
+        presses = [
+            (detail, bool(state & X.ControlMask))
+            for kind, detail, state in self.key_events()
+            if kind == X.KeyPress
+        ]
+        self.assertEqual(
+            presses, [(self.keycode(XK.XK_Control_L), False), (self.keycode(XK.XK_b), True)]
+        )
 
     def test_backspace_arrives_as_the_backspace_key(self):
         self.backend.type_char("\b")

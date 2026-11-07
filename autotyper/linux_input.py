@@ -14,7 +14,14 @@ from Xlib.ext import xtest
 from Xlib.protocol import event as xevent
 
 from .errors import InputBackendError
-from .keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
+from .keys import (
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_UNDERLINE,
+    KEY_ESCAPE,
+    KEY_F9,
+    KEY_LEFT_BUTTON,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +52,12 @@ CONTROL_CHARS = {
     "\b": (XK.XK_BackSpace, "BackSpace"),
 }
 KEY_KEYSYMS = {KEY_ESCAPE: (XK.XK_Escape, "Escape"), KEY_F9: (XK.XK_F9, "F9")}
+FORMAT_KEYSYMS = {
+    FORMAT_BOLD: (XK.XK_b, "B"),
+    FORMAT_ITALIC: (XK.XK_i, "I"),
+    FORMAT_UNDERLINE: (XK.XK_u, "U"),
+}
+CONTROL_KEYSYM = (XK.XK_Control_L, "Control")
 
 NO_DISPLAY_MESSAGE = (
     "AutoTyper could not connect to an X11 display. Start it from an X11 desktop session "
@@ -257,6 +270,20 @@ class LinuxInput:
             self._type_unicode(ch)
             return
         self._tap(stroke.keycode, hold_shift=self._shift_for(ch, stroke))
+
+    def toggle_format(self, key):
+        """Press Ctrl+B, Ctrl+I or Ctrl+U for a ``keys.FORMAT_*`` key."""
+        if key not in FORMAT_KEYSYMS:
+            raise ValueError(f"Unknown formatting key: {key!r}")
+        control = self._keycode_for(*CONTROL_KEYSYM)
+        letter = self._keycode_for(*FORMAT_KEYSYMS[key])
+        self._fake_key(X.KeyPress, control)
+        try:
+            self._fake_key(X.KeyPress, letter)
+            self._fake_key(X.KeyRelease, letter)
+        finally:
+            self._fake_key(X.KeyRelease, control)
+            self.display.sync()
 
     def _caps_lock_on(self):
         """True while the Caps Lock modifier is active."""
