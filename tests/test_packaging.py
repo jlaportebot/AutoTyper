@@ -316,6 +316,14 @@ class Workflows(unittest.TestCase):
         runners = {job["runs-on"] for job in self.load("ci.yml")["jobs"].values()}
         self.assertTrue({"macos-15", "windows-latest"} <= runners)
 
+    def test_python_38_job_runs_on_an_ubuntu_image_that_still_ships_it(self):
+        job = self.load("ci.yml")["jobs"]["test-linux"]
+        matrix = job["strategy"]["matrix"]["include"]
+        entries = {item["python-version"]: item["os"] for item in matrix}
+        self.assertEqual(job["runs-on"], "${{ matrix.os }}")
+        self.assertEqual(entries["3.8"], "ubuntu-24.04")
+        self.assertIn("3.12", entries)
+
     def test_build_matrices_use_native_runners_for_each_architecture(self):
         linux = self.load("build-linux.yml")["jobs"]["build"]["strategy"]["matrix"]["include"]
         macos = self.load("build-macos.yml")["jobs"]["build"]["strategy"]["matrix"]["include"]

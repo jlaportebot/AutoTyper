@@ -12,11 +12,16 @@ permissions:
 jobs:
   test-linux:
     name: Lint and test (Linux, Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.12"]
+        include:
+          # setup-python has no Python 3.8 for the newest Ubuntu image; 24.04 still has one.
+          - python-version: "3.8"
+            os: ubuntu-24.04
+          - python-version: "3.12"
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
