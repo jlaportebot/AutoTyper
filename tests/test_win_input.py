@@ -6,13 +6,17 @@ real SendInput calls depend on.
 
 import ctypes
 import unittest
+from unittest import mock
 
 from autotyper.keys import KEY_ESCAPE, KEY_F9, KEY_LEFT_BUTTON
 from autotyper.win_input import (
     SYMBOLIC_TO_VK,
+    VK_BACK,
     VK_ESCAPE,
     VK_F9,
     VK_LBUTTON,
+    VK_RETURN,
+    VK_TAB,
     WindowsInput,
     build_input_structs,
 )
@@ -95,6 +99,31 @@ class InputStructs(unittest.TestCase):
         data = "😀".encode("utf-16-le")
         units = [int.from_bytes(data[i : i + 2], "little") for i in (0, 2)]
         self.assertEqual(units, [0xD83D, 0xDE00])
+
+
+class ControlCharacters(unittest.TestCase):
+    def setUp(self):
+        self.backend = make_backend()
+        self.backend.press_vk = mock.Mock()
+
+    def test_backspace_presses_the_backspace_virtual_key(self):
+        self.backend.type_char("\b")
+        self.backend.press_vk.assert_called_once_with(VK_BACK)
+
+    def test_backspace_virtual_key_is_win32_vk_back(self):
+        self.assertEqual(VK_BACK, 0x08)
+
+    def test_newline_presses_return(self):
+        self.backend.type_char("\n")
+        self.backend.press_vk.assert_called_once_with(VK_RETURN)
+
+    def test_tab_presses_tab(self):
+        self.backend.type_char("\t")
+        self.backend.press_vk.assert_called_once_with(VK_TAB)
+
+    def test_carriage_return_is_ignored(self):
+        self.backend.type_char("\r")
+        self.backend.press_vk.assert_not_called()
 
 
 if __name__ == "__main__":

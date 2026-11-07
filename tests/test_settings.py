@@ -101,6 +101,37 @@ class Settings(unittest.TestCase):
         self.assertEqual(loaded["wpm"], 42)
         self.assertEqual(loaded["delay"], DEFAULTS["delay"])
 
+    def test_typo_settings_have_defaults(self):
+        self.assertEqual(DEFAULTS["typos"], 2)
+        self.assertEqual(DEFAULTS["catch"], 8)
+
+    def test_typo_settings_roundtrip(self):
+        save_settings({**DEFAULTS, "typos": 7, "catch": 3})
+        loaded = load_settings()
+        self.assertEqual((loaded["typos"], loaded["catch"]), (7, 3))
+
+    def test_settings_saved_by_an_older_version_gain_the_new_defaults(self):
+        save_settings({"wpm": 90, "variation": 10, "delay": 5, "text": "hi"})
+        loaded = load_settings()
+        self.assertEqual((loaded["typos"], loaded["catch"]), (DEFAULTS["typos"], DEFAULTS["catch"]))
+
+    def test_values_of_the_wrong_type_fall_back_to_defaults(self):
+        save_settings({"wpm": "fast", "variation": None, "delay": 4, "text": 12, "typos": True})
+        loaded = load_settings()
+        self.assertEqual(loaded["wpm"], DEFAULTS["wpm"])
+        self.assertEqual(loaded["variation"], DEFAULTS["variation"])
+        self.assertEqual(loaded["delay"], 4)
+        self.assertEqual(loaded["text"], DEFAULTS["text"])
+        self.assertEqual(loaded["typos"], DEFAULTS["typos"])
+
+    def test_whole_number_floats_are_accepted_as_numbers(self):
+        save_settings({"wpm": 80.0})
+        self.assertEqual(load_settings()["wpm"], 80)
+
+    def test_unknown_keys_are_dropped(self):
+        save_settings({"wpm": 80, "surprise": "value"})
+        self.assertNotIn("surprise", load_settings())
+
     def test_corrupt_file_falls_back_to_defaults(self):
         path = settings_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -12,6 +12,9 @@ from autotyper.pacing import (
     fmt_time,
     plan_delays,
 )
+from autotyper.typos import BACKSPACE, final_text, typo_settings
+
+PROSE = "the quick brown fox jumps over the lazy dog, then naps. " * 30
 
 
 class Pacing(unittest.TestCase):
@@ -72,6 +75,71 @@ class Pacing(unittest.TestCase):
 
     def test_empty_text_produces_empty_plan(self):
         self.assertEqual(plan_delays("", 60, 0.25, random.Random(1)), [])
+
+
+class PacingWithTypos(unittest.TestCase):
+    def plan(self, text=PROSE, wpm=60, variation=0.0, seed=4, percent=10, catch=6):
+        return plan_delays(text, wpm, variation, random.Random(seed), typo_settings(percent, catch))
+
+    def test_typing_the_plan_leaves_exactly_the_text(self):
+        for seed in range(40):
+            plan = self.plan(variation=0.4, seed=seed)
+            self.assertEqual(final_text(char for char, _ in plan), PROSE)
+
+    def test_plan_contains_backspaces_when_typos_are_on(self):
+        self.assertIn(BACKSPACE, [char for char, _ in self.plan()])
+
+    def test_no_typos_by_default(self):
+        plan = plan_delays(PROSE, 60, 0.25, random.Random(1))
+        self.assertEqual("".join(char for char, _ in plan), PROSE)
+
+    def test_zero_percent_matches_the_plain_plan(self):
+        plain = plan_delays(PROSE, 60, 0.25, random.Random(1))
+        self.assertEqual(self.plan(variation=0.25, seed=1, percent=0), plain)
+
+    def first_backspaces(self, plan):
+        return [
+            delay
+            for index, (char, delay) in enumerate(plan)
+            if char == BACKSPACE and plan[index - 1][0] != BACKSPACE
+        ]
+
+    def test_noticing_a_slip_takes_a_moment(self):
+        for delay in self.first_backspaces(self.plan()):
+            self.assertGreater(delay, base_delay(60) * 2)
+
+    def test_repeated_backspaces_are_quicker_than_typing(self):
+        plan = self.plan(catch=10)
+        repeats = [
+            delay
+            for index, (char, delay) in enumerate(plan)
+            if char == BACKSPACE and plan[index - 1][0] == BACKSPACE
+        ]
+        self.assertTrue(repeats)
+        for delay in repeats:
+            self.assertLess(delay, base_delay(60))
+
+    def test_retyping_after_a_fix_starts_with_a_short_hesitation(self):
+        plan = self.plan()
+        resumes = [
+            delay
+            for index, (char, delay) in enumerate(plan)
+            if char != BACKSPACE and index and plan[index - 1][0] == BACKSPACE
+        ]
+        self.assertTrue(resumes)
+        for delay in resumes:
+            self.assertGreater(delay, base_delay(60))
+
+    def test_typos_make_the_estimate_longer(self):
+        without = estimate_seconds(PROSE, 60, 0.25)
+        with_typos = estimate_seconds(PROSE, 60, 0.25, typo_settings(10, 8))
+        self.assertGreater(with_typos, without * 1.05)
+
+    def test_estimate_with_typos_is_deterministic(self):
+        settings = typo_settings(5, 6)
+        self.assertEqual(
+            estimate_seconds(PROSE, 70, 0.3, settings), estimate_seconds(PROSE, 70, 0.3, settings)
+        )
 
 
 if __name__ == "__main__":

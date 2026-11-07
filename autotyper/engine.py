@@ -2,7 +2,7 @@
 
 The engine is platform independent. It talks to a backend that provides:
 
-* ``type_char(ch)``      - type one character
+* ``type_char(ch)``      - type one character (``"\\b"`` is Backspace)
 * ``key_down(key)``      - True while a physical key is held (see ``keys.py``)
 * ``foreground()``       - handle of the focused window
 * ``focus(handle)``      - bring a window back to the foreground
@@ -16,6 +16,7 @@ import threading
 import time
 
 from .keys import KEY_ESCAPE, KEY_F9
+from .typos import final_text
 
 POLL_INTERVAL = 0.02
 TICKS_PER_SECOND = 50
@@ -84,7 +85,11 @@ class Typist:
         """Cancel the session before any character is typed."""
         self.stop()
         self.result = RESULT_STOPPED
-        self.on_state(RESULT_STOPPED, f"0/{len(self.plan)}")
+        self.on_state(RESULT_STOPPED, f"0/{self._text_length()}")
+
+    def _text_length(self, keys_typed=None):
+        """Characters of text in the field after ``keys_typed`` keys (default: all)."""
+        return len(final_text(char for char, _ in self.plan[:keys_typed]))
 
     @property
     def paused(self):
@@ -180,7 +185,7 @@ class Typist:
             if not self._type_next():
                 continue
         self.result = RESULT_DONE if self.pos >= total else RESULT_STOPPED
-        self.on_state(self.result, f"{self.pos}/{total}")
+        self.on_state(self.result, f"{self._text_length(self.pos)}/{self._text_length()}")
         return self.result
 
     def _type_next(self):

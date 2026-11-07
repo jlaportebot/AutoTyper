@@ -1,4 +1,4 @@
-"""Persisted user settings (speed, rhythm, start delay, last text)."""
+"""Persisted user settings (speed, rhythm, start delay, typos, last text)."""
 
 import json
 import logging
@@ -13,6 +13,8 @@ DEFAULTS = {
     "wpm": 65,
     "variation": 25,
     "delay": 3,
+    "typos": 2,
+    "catch": 8,
     "text": "",
 }
 
@@ -32,16 +34,41 @@ def settings_path():
     return os.path.join(config_base_dir(), APP_NAME, "settings.json")
 
 
+def _is_valid(value, default):
+    """True if a saved value has the same kind as its default (whole numbers for numbers)."""
+    if isinstance(default, str):
+        return isinstance(value, str)
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, float):
+        return value.is_integer()
+    return isinstance(value, int)
+
+
+def _merge_with_defaults(saved):
+    """Known keys from ``saved`` where valid, defaults everywhere else."""
+    merged = dict(DEFAULTS)
+    for key, default in DEFAULTS.items():
+        if key not in saved:
+            continue
+        value = saved[key]
+        if not _is_valid(value, default):
+            logger.warning("Ignoring saved %s=%r; using %r", key, value, default)
+            continue
+        merged[key] = int(value) if isinstance(value, float) else value
+    return merged
+
+
 def load_settings():
     """Load saved settings, falling back to defaults on any problem."""
     try:
         with open(settings_path(), encoding="utf-8") as handle:
             saved = json.load(handle)
-        if not isinstance(saved, dict):
-            return dict(DEFAULTS)
-        return {**DEFAULTS, **saved}
     except (OSError, ValueError, TypeError):
         return dict(DEFAULTS)
+    if not isinstance(saved, dict):
+        return dict(DEFAULTS)
+    return _merge_with_defaults(saved)
 
 
 def save_settings(settings):

@@ -9,7 +9,8 @@ AutoTyper is a small desktop app for Windows, macOS and Linux. You pick the
 spot on screen you want to write into, paste the text you want written, choose
 how fast it should be typed, and press **Go**. AutoTyper clicks the spot,
 focuses it and types the text character by character with natural rhythm — variable speed, a pause at
-commas, a longer pause at full stops, a beat between sentences.
+commas, a longer pause at full stops, a beat between sentences — and, like a real person, the odd
+typo that it notices a few keys later, backspaces over and fixes.
 
 It is meant for writing into anything that monitors how you type: timed
 writing platforms, prose trainers, typing tutors, form fillers you have to
@@ -30,7 +31,7 @@ writing platforms, prose trainers, typing tutors, form fillers you have to
 Grab the file for your system from the
 [Releases page](https://github.com/jlaportebot/AutoTyper/releases/latest). Each
 one is self-contained — no Python installation required. In the names below,
-`<version>` is the release number, for example `1.1.0`.
+`<version>` is the release number, for example `1.2.0`.
 
 | System | File |
 | --- | --- |
@@ -128,6 +129,25 @@ settings.
 - **Start delay** — 1 to 10 seconds. A countdown before AutoTyper clicks the
   target, so you can get your hands off the mouse.
 
+### 04 · Mistakes
+
+- **Typos** — 0% to 10%. Roughly how many words in every hundred get a typo.
+  The gap between typos is random, so they never fall on a beat. 0% types
+  the text perfectly.
+- **Catch within** — 0 to 15 keys. How many more keys may be typed before a
+  typo is noticed. Each typo picks its own distance up to this limit (most are
+  caught quickly, a few run on), then AutoTyper pauses as if spotting it,
+  backspaces over everything since the typo and types it correctly.
+
+For example, typing "hello my name" with a typo caught 6 keys late looks like
+`helbo my n` → pause → six backspaces → `lo my name`.
+
+Typos are realistic slips: a neighbouring key on a QWERTY keyboard (`hrllo`),
+a doubled letter (`helllo`), two swapped letters (`teh`) or a skipped letter
+(`hllo`). They only land on plain letters, and a fix never reaches back over a
+line break, a tab or an accented/emoji character, so the finished text is
+always exactly the text you entered.
+
 Press **Go**. The full window collapses into a small floating control bar in
 the corner (it moves itself if it would cover your target), a countdown runs,
 AutoTyper clicks the target and starts typing.
@@ -148,7 +168,7 @@ pauses itself automatically so it can never type into the wrong app. When you
 resume, it counts down two seconds and brings the target window back to the
 front by itself.
 
-Your text, speed, rhythm and delay are remembered between sessions
+Your text, speed, rhythm, delay and mistake settings are remembered between sessions
 in `settings.json` inside the AutoTyper settings folder:
 
 | System | Path |
@@ -181,11 +201,15 @@ On top of the base WPM speed it adds:
   pause.
 - **Newline pause** — the longest pause, because humans lift the keyboard
   between lines.
+- **Typos and corrections** — the occasional wrong key, noticed a random
+  number of keys later: a short pause, quick backspaces, a beat of hesitation,
+  then the right text.
 - **Natural resume** — resuming restarts from the exact character, with the
   remaining delay preserved, so there is no visible jump.
 
 Unicode (accents, emoji, CJK) and tabs/newlines are handled properly:
-emoji are sent as UTF-16 surrogate pairs, newlines as `Enter`, tabs as `Tab`.
+emoji are sent as UTF-16 surrogate pairs, newlines as `Enter`, tabs as `Tab`,
+and corrections as real `Backspace` key presses.
 
 ---
 
@@ -205,6 +229,7 @@ AutoTyper/
 │   ├── mac_input.py    # macOS Quartz CGEvent layer
 │   ├── pacing.py       # human-like timing maths (pure functions)
 │   ├── settings.py     # persisted preferences (per-OS config folder)
+│   ├── typos.py        # realistic typos and their corrections (pure functions)
 │   ├── widgets.py      # flat button + slider widgets
 │   └── win_input.py    # Windows SendInput / mouse / window API layer
 ├── tests/              # unit, UI and packaging tests (no real OS input needed)
@@ -273,7 +298,7 @@ Every build can check itself without typing anything:
 
 ### Release
 
-Pushing a tag such as `v1.1.0` runs `release.yml`: it builds, smoke-tests and
+Pushing a tag such as `v1.2.0` runs `release.yml`: it builds, smoke-tests and
 publishes the Windows, macOS and Linux files in one release.
 
 ---
@@ -287,6 +312,15 @@ Administrator, run AutoTyper as Administrator too.
 **The cursor moved while paused.** Do not click inside the target text box
 while paused — that repositions the caret, and typing resumes wherever the
 caret now is.
+
+**A typo was left in the text.** That happens only if you stop the session
+(`Esc` or **Stop**) between a typo and its fix — stopping is immediate, so the
+fix is never typed. Let a session finish, or set **Typos** to 0%.
+
+**The target app autocorrects or autocompletes.** Word processors that
+autocorrect words (`teh` → `the`) can change the text before AutoTyper fixes
+its own typo, so the backspaces erase the wrong number of characters. Turn off
+autocorrect in the target app, or set **Typos** to 0%.
 
 **Text is typed into the wrong place.** AutoTyper pauses when you switch
 windows, but if you move the target window after picking, the stored pixel

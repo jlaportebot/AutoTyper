@@ -39,7 +39,11 @@ ACTIVATION_MASK = X.SubstructureRedirectMask | X.SubstructureNotifyMask
 
 # Keymap columns: 0 is the plain symbol, 1 is the symbol with Shift held.
 CHAR_TABLE_COLUMNS = ((0, False), (1, True))
-CONTROL_CHARS = {"\n": (XK.XK_Return, "Return"), "\t": (XK.XK_Tab, "Tab")}
+CONTROL_CHARS = {
+    "\n": (XK.XK_Return, "Return"),
+    "\t": (XK.XK_Tab, "Tab"),
+    "\b": (XK.XK_BackSpace, "BackSpace"),
+}
 KEY_KEYSYMS = {KEY_ESCAPE: (XK.XK_Escape, "Escape"), KEY_F9: (XK.XK_F9, "F9")}
 
 NO_DISPLAY_MESSAGE = (
@@ -242,7 +246,7 @@ class LinuxInput:
             self._discard_pending_events()
 
     def type_char(self, ch):
-        """Type one character, including accents, CJK and emoji."""
+        """Type one character, including accents, CJK and emoji; ``"\\b"`` erases."""
         if ch == "\r":
             return
         if ch in CONTROL_CHARS:

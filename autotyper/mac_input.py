@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 KEYCODE_RETURN = 36
 KEYCODE_TAB = 48
+KEYCODE_BACKSPACE = 51
 KEYCODE_SPACE = 49
 KEYCODE_ESCAPE = 53
 KEYCODE_F9 = 101
@@ -26,7 +27,7 @@ CLICK_HOLD_DELAY = 0.03
 NORMAL_WINDOW_LAYER = 0
 
 KEY_KEYCODES = {KEY_ESCAPE: KEYCODE_ESCAPE, KEY_F9: KEYCODE_F9}
-CONTROL_KEYCODES = {"\n": KEYCODE_RETURN, "\t": KEYCODE_TAB}
+CONTROL_KEYCODES = {"\n": KEYCODE_RETURN, "\t": KEYCODE_TAB, "\b": KEYCODE_BACKSPACE}
 
 WINDOW_NUMBER = "kCGWindowNumber"
 WINDOW_NAME = "kCGWindowName"
@@ -161,7 +162,7 @@ class MacInput:
         self._post_key(keycode, False, text)
 
     def type_char(self, ch):
-        """Type one character, including Unicode and surrogate pairs."""
+        """Type one character, including Unicode and surrogate pairs; ``"\\b"`` erases."""
         if ch == "\r":
             return
         if ch in CONTROL_KEYCODES:
