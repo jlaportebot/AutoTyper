@@ -33,7 +33,7 @@ writing platforms, prose trainers, typing tutors, form fillers you have to
 Grab the file for your system from the
 [Releases page](https://github.com/jlaportebot/AutoTyper/releases/latest). Each
 one is self-contained — no Python installation required. In the names below,
-`<version>` is the release number, for example `1.3.0`.
+`<version>` is the release number, for example `1.4.0`.
 
 | System | File |
 | --- | --- |
@@ -154,7 +154,7 @@ Google Docs, Word, LibreOffice, Pages and most rich-text editors understand.
 - **Start delay** — 1 to 10 seconds. A countdown before AutoTyper clicks the
   target, so you can get your hands off the mouse.
 
-### 04 · Mistakes
+### 04 · Mistakes & breaks
 
 - **Typos** — 0% to 10%. Roughly how many words in every hundred get a typo.
   The gap between typos is random, so they never fall on a beat. 0% types
@@ -172,6 +172,16 @@ a doubled letter (`helllo`), two swapped letters (`teh`) or a skipped letter
 (`hllo`). They only land on plain letters, and a fix never reaches back over a
 line break, a tab or an accented/emoji character, so the finished text is
 always exactly the text you entered.
+
+- **Break every** — 0 to 120 seconds (0 = no breaks). After this many seconds
+  of typing, AutoTyper stops for a rest, like someone thinking or looking away.
+- **Break for** — 1 to 30 seconds. How long each rest lasts.
+
+For example, *Break every 10s* and *Break for 2s* types for about ten seconds,
+rests for about two, and repeats. Neither number is exact: the interval varies
+by ±15% and each rest by ±25%, so the pattern never looks mechanical. Time spent
+paused with `F9` does not count towards the next break, and the ETA includes
+the breaks.
 
 Press **Go**. The full window collapses into a small floating control bar in
 the corner (it moves itself if it would cover your target), a countdown runs,
@@ -193,7 +203,7 @@ pauses itself automatically so it can never type into the wrong app. When you
 resume, it counts down two seconds and brings the target window back to the
 front by itself.
 
-Your text (with its formatting), speed, rhythm, delay, mistake and formatting settings are remembered between sessions
+Your text (with its formatting), speed, rhythm, delay, mistake, break and formatting settings are remembered between sessions
 in `settings.json` inside the AutoTyper settings folder:
 
 | System | Path |
@@ -226,6 +236,8 @@ On top of the base WPM speed it adds:
   pause.
 - **Newline pause** — the longest pause, because humans lift the keyboard
   between lines.
+- **Timed breaks** — a rest of a few seconds every so often, with the interval
+  and the length both slightly randomised.
 - **Typos and corrections** — the occasional wrong key, noticed a random
   number of keys later: a short pause, quick backspaces, a beat of hesitation,
   then the right text.
@@ -326,7 +338,7 @@ Every build can check itself without typing anything:
 
 ### Release
 
-Pushing a tag such as `v1.3.0` runs `release.yml`: it builds, smoke-tests and
+Pushing a tag such as `v1.4.0` runs `release.yml`: it builds, smoke-tests and
 publishes the Windows, macOS and Linux files in one release.
 
 ---

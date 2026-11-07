@@ -16,6 +16,8 @@ DEFAULTS = {
     "delay": 3,
     "typos": 2,
     "catch": 8,
+    "rest_every": 0,
+    "rest_for": 3,
     "formatting": True,
     "text": "",
     "styles": [],

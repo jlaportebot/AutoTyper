@@ -149,6 +149,15 @@ class Settings(unittest.TestCase):
         self.assertEqual(DEFAULTS["styles"], [])
         self.assertEqual(load_settings()["styles"], [])
 
+    def test_break_settings_default_to_off(self):
+        self.assertEqual(DEFAULTS["rest_every"], 0)
+        self.assertGreater(DEFAULTS["rest_for"], 0)
+
+    def test_break_settings_roundtrip(self):
+        save_settings({**DEFAULTS, "rest_every": 15, "rest_for": 3})
+        loaded = load_settings()
+        self.assertEqual((loaded["rest_every"], loaded["rest_for"]), (15, 3))
+
     def test_unknown_keys_are_dropped(self):
         save_settings({"wpm": 80, "surprise": "value"})
         self.assertNotIn("surprise", load_settings())

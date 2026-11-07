@@ -4,5 +4,5 @@ Public API is intentionally small; the app is driven through
 ``autotyper.__main__.main``.
 """
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 __all__ = ["__version__"]

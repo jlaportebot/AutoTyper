@@ -13,6 +13,7 @@ from autotyper.pacing import (
     fmt_time,
     plan_delays,
     plan_keys,
+    rest_settings,
 )
 from autotyper.typos import BACKSPACE, final_text, typo_settings
 
@@ -162,6 +163,62 @@ class PacingWithShortcuts(unittest.TestCase):
             plan_keys(list("hello there."), 70, 0.3, random.Random(5)),
             plan_delays("hello there.", 70, 0.3, random.Random(5)),
         )
+
+
+class PacingWithBreaks(unittest.TestCase):
+    TEXT = "the quick brown fox jumps over the lazy dog. " * 40
+
+    def plan(self, every, length, seed=1, **kwargs):
+        rest = rest_settings(every, length)
+        return plan_delays(self.TEXT, 60, 0.2, random.Random(seed), rest=rest, **kwargs)
+
+    def total(self, plan):
+        return sum(delay for _, delay in plan)
+
+    def test_disabled_by_default_and_with_zero_interval(self):
+        plain = plan_delays(self.TEXT, 60, 0.2, random.Random(1))
+        self.assertEqual(self.plan(0, 5), plain)
+        self.assertFalse(rest_settings(0, 5).enabled)
+        self.assertTrue(rest_settings(10, 2).enabled)
+
+    def test_values_are_clamped(self):
+        self.assertEqual(rest_settings(-3, -1), rest_settings(0, 0))
+        self.assertEqual(rest_settings(99999, 99999).every, rest_settings(3600, 600).every)
+
+    def test_text_is_unchanged_by_breaks(self):
+        plan = self.plan(10, 2)
+        self.assertEqual("".join(key for key, _ in plan), self.TEXT)
+
+    def test_a_break_roughly_every_interval(self):
+        plan = self.plan(10, 3)
+        long_pauses = [d for _, d in plan if d >= 2]
+        expected = self.total(plan) / 13
+        self.assertTrue(0.6 * expected <= len(long_pauses) <= 1.5 * expected + 1)
+
+    def test_break_lengths_vary_around_the_setting(self):
+        lengths = [d for _, d in self.plan(10, 3) if d >= 2]
+        self.assertGreater(len(set(lengths)), 3)
+        for length in lengths:
+            self.assertTrue(2 <= length <= 6, length)
+
+    def test_longer_interval_means_fewer_breaks(self):
+        often = sum(1 for _, d in self.plan(5, 3) if d >= 2)
+        rarely = sum(1 for _, d in self.plan(30, 3) if d >= 2)
+        self.assertGreater(often, rarely)
+
+    def test_estimate_includes_breaks(self):
+        rest = rest_settings(10, 5)
+        self.assertGreater(
+            estimate_seconds(self.TEXT, 60, 0.2, rest=rest),
+            estimate_seconds(self.TEXT, 60, 0.2) * 1.2,
+        )
+
+    def test_deterministic(self):
+        self.assertEqual(self.plan(10, 2, seed=4), self.plan(10, 2, seed=4))
+
+    def test_works_together_with_typos(self):
+        plan = self.plan(10, 2, typos=typo_settings(10, 6))
+        self.assertEqual(final_text(key for key, _ in plan), self.TEXT)
 
 
 if __name__ == "__main__":
