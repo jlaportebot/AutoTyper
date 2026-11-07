@@ -508,6 +508,42 @@ class UserInterface(unittest.TestCase):
             gui.time.sleep(0.01)
         return typist
 
+    def test_breaks_start_off(self):
+        self.assertEqual(self.app.slider_rest_every.get(), 0)
+        self.assertFalse(self.app.rest_settings().enabled)
+
+    def test_break_settings_are_persisted(self):
+        self.app.slider_rest_every.set(15)
+        self.app.slider_rest_for.set(3)
+        self.app.persist()
+        from autotyper.settings import load_settings
+
+        saved = load_settings()
+        self.assertEqual((saved["rest_every"], saved["rest_for"]), (15, 3))
+
+    def test_eta_includes_breaks(self):
+        self.set_text("The quick brown fox jumps over the lazy dog. " * 40)
+        self.app.slider_typos.set(0)
+        self.app.slider_rest_every.set(0)
+        self.app.refresh()
+        without = self.app.eta_label.cget("text")
+        self.app.slider_rest_every.set(5)
+        self.app.slider_rest_for.set(10)
+        self.app.refresh()
+        self.assertNotEqual(self.app.eta_label.cget("text"), without)
+
+    def test_session_takes_breaks_and_still_types_the_exact_text(self):
+        text = "The quick brown fox jumps over the lazy dog. " * 10
+        self.app.slider_typos.set(0)
+        self.app.slider_wpm.set(60)
+        self.app.slider_rest_every.set(5)
+        self.app.slider_rest_for.set(2)
+        typist = self.run_session(text)
+        self.assertEqual(typist.result, "done")
+        self.assertEqual("".join(self.backend.out), text)
+        long_waits = [delay for _, delay in typist.plan if delay >= 1.4]
+        self.assertGreaterEqual(len(long_waits), 3)
+
     def test_settings_roundtrip_through_the_ui(self):
         self.app.text_box.delete("1.0", "end")
         self.app.text_box.insert("1.0", "remember me")

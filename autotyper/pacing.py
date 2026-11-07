@@ -5,6 +5,7 @@ seeded ``random.Random`` is supplied.
 """
 
 import random
+from typing import NamedTuple
 
 from .keys import FORMAT_KEYS
 from .typos import BACKSPACE, weave_typos
@@ -14,6 +15,14 @@ MAX_WPM = 400
 MAX_VARIATION = 0.9
 CHARS_PER_WORD = 5
 MIN_CHAR_DELAY = 0.005
+MAX_REST_EVERY = 3600
+MAX_REST_FOR = 600
+# The sliders cover the useful range; the settings still accept more.
+MAX_REST_EVERY_UI = 120
+MAX_REST_FOR_UI = 30
+# A person never rests on an exact schedule: both numbers wander a little.
+REST_EVERY_JITTER = 0.15
+REST_FOR_JITTER = 0.25
 
 SPACE_MULTIPLIER = 1.3
 PAUSE_AFTER_COMMA = (2, 4)
@@ -28,6 +37,47 @@ BACKSPACE_REPEAT = (0.45, 0.8)
 PAUSE_AFTER_FIX = (1, 2.5)
 # Reaching for Ctrl/Command plus a letter takes a little longer than one key.
 PAUSE_FOR_SHORTCUT = (1, 2)
+
+
+class RestSettings(NamedTuple):
+    """A break every ``every`` seconds of typing, lasting about ``length`` seconds."""
+
+    every: float = 0.0
+    length: float = 0.0
+
+    @property
+    def enabled(self):
+        """True when breaks will be taken."""
+        return self.every > 0 and self.length > 0
+
+
+def rest_settings(every, length):
+    """Build :class:`RestSettings`, clamping both values into their ranges."""
+    every = max(0.0, min(float(MAX_REST_EVERY), float(every)))
+    length = max(0.0, min(float(MAX_REST_FOR), float(length)))
+    return RestSettings(every, length)
+
+
+def _next_rest_at(rest, rng):
+    """Seconds of typing until the next break."""
+    return rest.every * rng.uniform(1 - REST_EVERY_JITTER, 1 + REST_EVERY_JITTER)
+
+
+def _add_breaks(plan, rest, rng):
+    """Add a break to the key that follows each stretch of ``rest.every`` seconds."""
+    if rest is None or not rest.enabled:
+        return plan
+    result = []
+    typed = 0.0
+    due = _next_rest_at(rest, rng)
+    for key, delay in plan:
+        typed += delay
+        if typed >= due:
+            delay += rest.length * rng.uniform(1 - REST_FOR_JITTER, 1 + REST_FOR_JITTER)
+            typed = 0.0
+            due = _next_rest_at(rest, rng)
+        result.append((key, delay))
+    return result
 
 
 def clamp_wpm(wpm):
@@ -75,7 +125,7 @@ def _adjust_delay(previous, char, delay, base, rng):
     return delay
 
 
-def plan_delays(text, wpm=60, variation=0.25, rng=None, typos=None):
+def plan_delays(text, wpm=60, variation=0.25, rng=None, typos=None, rest=None):
     """Build the typing schedule.
 
     Returns a list of ``(character, delay_before_character_seconds)`` pairs.
@@ -86,14 +136,15 @@ def plan_delays(text, wpm=60, variation=0.25, rng=None, typos=None):
     rng = rng or random.Random()
     if typos is not None:
         text = weave_typos(text, typos, rng)
-    return plan_keys(text, wpm, variation, rng)
+    return plan_keys(text, wpm, variation, rng, rest)
 
 
-def plan_keys(keys, wpm=60, variation=0.25, rng=None):
+def plan_keys(keys, wpm=60, variation=0.25, rng=None, rest=None):
     """Build the typing schedule for an exact sequence of keys.
 
     ``keys`` holds characters, ``"\\b"`` backspaces and formatting shortcuts
     (``keys.FORMAT_KEYS``); returns ``(key, delay_before_key_seconds)`` pairs.
+    With ``rest`` (:class:`RestSettings`) a pause is added every so often.
     """
     rng = rng or random.Random()
     base = base_delay(wpm)
@@ -105,12 +156,12 @@ def plan_keys(keys, wpm=60, variation=0.25, rng=None):
         delay = _adjust_delay(previous, char, delay, base, rng)
         plan.append((char, max(MIN_CHAR_DELAY, delay)))
         previous = char
-    return plan
+    return _add_breaks(plan, rest, rng)
 
 
-def estimate_seconds(text, wpm=60, variation=0.25, typos=None):
+def estimate_seconds(text, wpm=60, variation=0.25, typos=None, rest=None):
     """Estimate how long typing ``text`` takes, in seconds."""
-    plan = plan_delays(text, wpm, variation, random.Random(0), typos)
+    plan = plan_delays(text, wpm, variation, random.Random(0), typos, rest)
     return sum(delay for _, delay in plan)
 
 

@@ -1,38 +1,32 @@
-# AutoTyper v1.3.0
+# AutoTyper v1.4.0
 
-**Paste formatted text and AutoTyper keeps the bold, italic, underline and spacing.**
+**Timed breaks: type for a while, rest, repeat.**
 
 ![AutoTyper icon](assets/autotyper-logo.png)
 
 ## What's new
 
-- **Formatting.** Copy text from Google Docs, Word, LibreOffice, Pages or a web
-  page and paste it into AutoTyper: **bold**, *italic* and underline are kept,
-  shown in the editor and typed with the target app's own shortcuts
-  (`Ctrl+B`/`I`/`U`, `⌘B`/`I`/`U` on macOS).
-  - Paragraphs, blank lines, tabs and spacing come through exactly.
-  - Lists are typed as `•` bullets and `1.` numbers.
-  - Select text in the editor and press `Ctrl+B`/`I`/`U` to format it yourself.
-  - **Formatting on / off** switches to plain text for plain-text boxes.
-  - Formatting is saved with your text between sessions.
-  - Typos still work with formatting, and a fix never erases back across a
-    style change.
-- **Open** also loads saved web pages (`.html`) with their formatting.
-- Fonts, sizes and colours are not typed: no shortcut sets them in every app,
-  so choose them in your document before pressing **Go**.
+- **Break every / Break for.** AutoTyper now rests for a few seconds every so
+  often. For example, *every 10 seconds, rest 2 seconds*, or *every 15 seconds,
+  rest 3 seconds*. Both are sliders (0 seconds = no breaks).
+  - Neither number is exact: the interval varies by 15% and each rest by 25%,
+    so it never looks mechanical.
+  - Time spent paused with `F9` does not count towards the next break.
+  - The time estimate includes the breaks, and the settings are remembered.
+- Works together with typos and formatting.
 
-Everything from v1.2.0 (realistic typos fixed with real backspaces) is still
-here.
+Breaks are off by default. Everything from v1.2.0 (typos) and v1.3.0 (kept
+formatting) is still here.
 
 ## Download
 
 | System | File |
 | --- | --- |
 | Windows (64-bit) | `AutoTyper.exe` or `AutoTyper-windows-x64.zip` |
-| macOS, Apple Silicon | `AutoTyper-1.3.0-macos-arm64.dmg` |
-| macOS, Intel | `AutoTyper-1.3.0-macos-x64.dmg` |
-| Linux, x86_64 | `AutoTyper-1.3.0-linux-x86_64.AppImage` |
-| Linux, ARM64 | `AutoTyper-1.3.0-linux-aarch64.AppImage` |
+| macOS, Apple Silicon | `AutoTyper-1.4.0-macos-arm64.dmg` |
+| macOS, Intel | `AutoTyper-1.4.0-macos-x64.dmg` |
+| Linux, x86_64 | `AutoTyper-1.4.0-linux-x86_64.AppImage` |
+| Linux, ARM64 | `AutoTyper-1.4.0-linux-aarch64.AppImage` |
 
 No Python installation is needed for any of them.
 

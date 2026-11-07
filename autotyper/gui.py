@@ -19,7 +19,14 @@ from .errors import InputBackendError
 from .gui_colors import COLORS
 from .input_factory import create_backend
 from .keys import KEY_ESCAPE, KEY_LEFT_BUTTON
-from .pacing import estimate_seconds, fmt_time, plan_keys
+from .pacing import (
+    MAX_REST_EVERY_UI,
+    MAX_REST_FOR_UI,
+    estimate_seconds,
+    fmt_time,
+    plan_keys,
+    rest_settings,
+)
 from .richtext import (
     Style,
     format_keys,
@@ -34,9 +41,9 @@ from .widgets import Button, Slider
 
 APP_NAME = "AutoTyper"
 WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 690
+WINDOW_HEIGHT = 750
 MIN_WIDTH = 500
-MIN_HEIGHT = 620
+MIN_HEIGHT = 680
 TEXT_BOX_LINES = 6
 MINI_WIDTH = 300
 MINI_HEIGHT = 128
@@ -293,15 +300,30 @@ class AutoTyperApp:
 
     def _build_mistakes_section(self):
         """Section 04: how often to slip, and how late a slip may be noticed."""
-        _, body = self._section(self.main_view, "04", "Mistakes")
+        _, body = self._section(self.main_view, "04", "Mistakes & breaks")
         self.slider_typos = self._slider(
             body, "Typos", 0, MAX_TYPO_PERCENT, self.config["typos"], "%", self.refresh
         )
         self.slider_catch = self._slider(
             body, "Catch within", 0, MAX_CATCH_KEYS, self.config["catch"], " keys", self.refresh
         )
-        for slider in (self.slider_typos, self.slider_catch):
+        self.slider_rest_every = self._slider(
+            body, "Break every", 0, MAX_REST_EVERY_UI, self.config["rest_every"], "s", self.refresh
+        )
+        self.slider_rest_for = self._slider(
+            body, "Break for", 1, MAX_REST_FOR_UI, self.config["rest_for"], "s", self.refresh
+        )
+        for slider in (
+            self.slider_typos,
+            self.slider_catch,
+            self.slider_rest_every,
+            self.slider_rest_for,
+        ):
             slider.pack(fill="x", pady=1)
+
+    def rest_settings(self):
+        """The break settings chosen with the Break sliders (0 seconds = no breaks)."""
+        return rest_settings(self.slider_rest_every.get(), self.slider_rest_for.get())
 
     def typo_settings(self):
         """The typo settings chosen with the Mistakes sliders."""
@@ -395,7 +417,11 @@ class AutoTyperApp:
             self.eta_label.config(text="")
             return
         seconds = estimate_seconds(
-            text, self.slider_wpm.get(), self.slider_variation.get() / 100, self.typo_settings()
+            text,
+            self.slider_wpm.get(),
+            self.slider_variation.get() / 100,
+            self.typo_settings(),
+            self.rest_settings(),
         )
         self.eta_label.config(text=f"≈ {fmt_time(seconds)}")
 
@@ -412,6 +438,8 @@ class AutoTyperApp:
                 "delay": self.slider_delay.get(),
                 "typos": self.slider_typos.get(),
                 "catch": self.slider_catch.get(),
+                "rest_every": self.slider_rest_every.get(),
+                "rest_for": self.slider_rest_for.get(),
                 "formatting": self.formatting,
                 "text": self.current_text(),
                 "styles": spans_from_runs(self.editor_runs()),
@@ -537,7 +565,7 @@ class AutoTyperApp:
         wpm = self.slider_wpm.get()
         variation = self.slider_variation.get() / 100
         delay = self.slider_delay.get()
-        plan = plan_keys(self._keys_to_type(text), wpm, variation, self.rng)
+        plan = plan_keys(self._keys_to_type(text), wpm, variation, self.rng, self.rest_settings())
         typist = Typist(
             self.backend,
             plan,
